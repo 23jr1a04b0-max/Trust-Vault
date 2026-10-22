@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS documents (
   owner_id TEXT NOT NULL REFERENCES users(id),
   name TEXT NOT NULL,
   category TEXT NOT NULL DEFAULT 'General',
+  visibility TEXT NOT NULL DEFAULT 'Private' CHECK (visibility IN ('Private','Public')),
   storage_key TEXT NOT NULL UNIQUE,
   size INTEGER NOT NULL CHECK(size >= 0),
   mime TEXT NOT NULL,
@@ -38,7 +39,7 @@ CREATE INDEX IF NOT EXISTS idx_documents_active ON documents(deleted_at,created_
 CREATE TABLE IF NOT EXISTS grants (
   document_id TEXT NOT NULL REFERENCES documents(id),
   user_id TEXT NOT NULL REFERENCES users(id),
-  permission TEXT NOT NULL CHECK(permission IN ('Read','Edit')),
+  permission TEXT NOT NULL CHECK(permission IN ('Read','Download','Edit')),
   granted_by TEXT NOT NULL REFERENCES users(id),
   created_at TEXT NOT NULL,
   revoked_at TEXT,
@@ -63,3 +64,17 @@ CREATE TABLE IF NOT EXISTS audit (
 );
 CREATE INDEX IF NOT EXISTS idx_audit_target ON audit(target_id,seq);
 CREATE INDEX IF NOT EXISTS idx_audit_outcome ON audit(outcome,seq);
+
+CREATE TABLE IF NOT EXISTS access_requests (
+  id TEXT PRIMARY KEY,
+  document_id TEXT NOT NULL REFERENCES documents(id),
+  requester_id TEXT NOT NULL REFERENCES users(id),
+  permission TEXT NOT NULL CHECK(permission IN ('Read','Download')),
+  status TEXT NOT NULL DEFAULT 'Pending' CHECK(status IN ('Pending','Approved','Rejected','Cancelled')),
+  created_at TEXT NOT NULL,
+  decided_at TEXT,
+  decided_by TEXT REFERENCES users(id),
+  expires_at TEXT,
+  UNIQUE(document_id,requester_id,permission,status)
+);
+CREATE INDEX IF NOT EXISTS idx_access_requests_owner_status ON access_requests(document_id,status,created_at);
