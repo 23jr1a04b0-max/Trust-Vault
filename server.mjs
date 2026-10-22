@@ -21,6 +21,20 @@ const now = () => new Date().toISOString();
 const sha = s => createHash('sha256').update(s).digest('hex');
 const safeEqual = (a,b) => { const aa=Buffer.from(a), bb=Buffer.from(b); return aa.length===bb.length && timingSafeEqual(aa,bb); };
 if (!DB.prepare('PRAGMA table_info(audit)').all().some(c => c.name === 'hash_version')) DB.exec('ALTER TABLE audit ADD COLUMN hash_version INTEGER NOT NULL DEFAULT 1');
+if (!DB.prepare('PRAGMA table_info(documents)').all().some(c => c.name === 'visibility')) DB.exec("ALTER TABLE documents ADD COLUMN visibility TEXT NOT NULL DEFAULT 'Private' CHECK (visibility IN ('Private','Public'))");
+DB.exec(`CREATE TABLE IF NOT EXISTS access_requests (
+  id TEXT PRIMARY KEY,
+  document_id TEXT NOT NULL REFERENCES documents(id),
+  requester_id TEXT NOT NULL REFERENCES users(id),
+  permission TEXT NOT NULL CHECK(permission IN ('Read','Download')),
+  status TEXT NOT NULL DEFAULT 'Pending' CHECK(status IN ('Pending','Approved','Rejected','Cancelled')),
+  created_at TEXT NOT NULL,
+  decided_at TEXT,
+  decided_by TEXT REFERENCES users(id),
+  expires_at TEXT,
+  UNIQUE(document_id,requester_id,permission,status)
+)`);
+DB.exec('CREATE INDEX IF NOT EXISTS idx_access_requests_owner_status ON access_requests(document_id,status,created_at)');
 let auditKey;
 if (process.env.NODE_ENV === 'production') {
   if (!process.env.AUDIT_HMAC_KEY || Buffer.byteLength(process.env.AUDIT_HMAC_KEY) < 32) throw new Error('Production requires AUDIT_HMAC_KEY with at least 32 bytes.');
@@ -111,11 +125,13 @@ async function readJson(req) { const b=await body(req); try{return JSON.parse(b.
 function hasDocAccess(user, doc, capability='Read') {
   if(!user||!doc||doc.deleted_at) return false;
   if(doc.owner_id===user.id) return true;
-  const g=q('SELECT permission FROM grants WHERE document_id=? AND user_id=? AND revoked_at IS NULL',doc.id,user.id);
-  return !!g && (g.permission==='Edit' || (g.permission==='Read' && capability==='Read'));
+  const g=q('SELECT permission,expires_at FROM grants WHERE document_id=? AND user_id=? AND revoked_at IS NULL',doc.id,user.id);
+  if(!g || (g.expires_at && Date.parse(g.expires_at)<=Date.now())) return false;
+  if(capability==='Download') return g.permission==='Download' || g.permission==='Edit';
+  return g.permission==='Read' || g.permission==='Download' || g.permission==='Edit';
 }
 function requireCsrf(req,user) { if(!user || !req.headers['x-csrf-token'] || !safeEqual(String(req.headers['x-csrf-token']),user.csrf)) throw Object.assign(new Error('CSRF validation failed'),{status:403}); }
-function docDto(d) { const owner=q('SELECT display_name FROM users WHERE id=?',d.owner_id); return {id:d.id,name:d.name,category:d.category,size:d.size,mime:d.mime,createdAt:d.created_at,ownerId:d.owner_id,ownerName:owner?.display_name||'Unknown owner'}; }
+function docDto(d) { const owner=q('SELECT display_name FROM users WHERE id=?',d.owner_id); return {id:d.id,name:d.name,category:d.category,visibility:d.visibility||'Private',size:d.size,mime:d.mime,createdAt:d.created_at,ownerId:d.owner_id,ownerName:owner?.display_name||'Unknown owner'}; }
 async function route(req,res) {
   let auditActor=null;
   const requestId=randomUUID(); const url=new URL(req.url,'http://localhost'); const path=url.pathname; const method=req.method||'GET';
@@ -149,9 +165,9 @@ async function route(req,res) {
       if(!user) { audit(null,'auth.required', 'route', path,'denied','unauthenticated',requestId); return json(res,401,{error:'Authentication required'}); }
       if(method!=='GET') requireCsrf(req,user);
       if(path==='/api/documents' && method==='GET') {
-        const docs=all(`SELECT DISTINCT d.* FROM documents d LEFT JOIN grants g ON g.document_id=d.id AND g.user_id=? AND g.revoked_at IS NULL WHERE d.deleted_at IS NULL AND (d.owner_id=? OR g.user_id=?) ORDER BY d.created_at DESC`,user.id,user.id,user.id).filter(d=>hasDocAccess(user,d));
+        const docs=all(`SELECT DISTINCT d.* FROM documents d LEFT JOIN grants g ON g.document_id=d.id AND g.user_id=? AND g.revoked_at IS NULL WHERE d.deleted_at IS NULL AND (d.owner_id=? OR g.user_id=? OR d.visibility='Public') ORDER BY d.created_at DESC`,user.id,user.id,user.id).filter(d=>d.visibility==='Public'||hasDocAccess(user,d));
         audit(user.id,'document.list','collection',null,'success',`visible_count:${docs.length}`,requestId);
-        return json(res,200,{documents:docs.map(d=>({...docDto(d),accessPermission:d.owner_id===user.id?'Owner':(q('SELECT permission FROM grants WHERE document_id=? AND user_id=? AND revoked_at IS NULL',d.id,user.id)?.permission||'Read')}))});
+        return json(res,200,{documents:docs.map(d=>({...docDto(d),accessPermission:d.owner_id===user.id?'Owner':(q('SELECT permission FROM grants WHERE document_id=? AND user_id=? AND revoked_at IS NULL',d.id,user.id)?.permission||(d.visibility==='Public'?'Public listing':'None'))}))});
       }
       if(path==='/api/documents' && method==='POST') {
         if(!['DocumentOwner'].includes(user.role)) { audit(user.id,'document.upload','collection',null,'denied','role_not_allowed',requestId); return json(res,403,{error:'Only document owners can upload files'}); }
@@ -160,9 +176,9 @@ async function route(req,res) {
         const parsed=parseMultipart(raw,boundary); const file=parsed.file; if(!file) { audit(user.id,'document.upload','collection',null,'denied','missing_upload_file',requestId); return json(res,400,{error:'Choose a file to upload'}); }
         const original=basename(file.filename).replace(/[\x00-\x1f\x7f]/g,'').trim(); const ext=extname(original).toLowerCase();
         if(!original||original.length>180||!allowed.has(ext)||file.data.length>MAX_UPLOAD||!validSignature(ext,file.data)||!file.contentType||file.contentType.toLowerCase()!==allowed.get(ext)) { audit(user.id,'document.upload','document',null,'denied','upload_validation_failed',requestId); return json(res,400,{error:'Unsupported, malformed, or oversized file. Allowed: PDF, TXT, PNG, JPG.'}); }
-        const key=randomBytes(32).toString('hex'); const id=randomUUID(); const category=String(parsed.fields.category||'General').slice(0,80);
+        const key=randomBytes(32).toString('hex'); const id=randomUUID(); const category=String(parsed.fields.category||'General').slice(0,80); const visibility=['Public','Private'].includes(parsed.fields.visibility)?parsed.fields.visibility:'Private';
         await new Promise((resolvePromise,reject)=>{const s=createWriteStream(join(PRIVATE,key),{flags:'wx',mode:0o600});s.on('error',reject);s.end(file.data,resolvePromise)});
-        try { run('INSERT INTO documents(id,owner_id,name,category,storage_key,size,mime,created_at) VALUES(?,?,?,?,?,?,?,?)',id,user.id,original,category,key,file.data.length,allowed.get(ext),now()); audit(user.id,'document.upload','document',id,'success','upload_complete',requestId); }
+        try { run('INSERT INTO documents(id,owner_id,name,category,storage_key,size,mime,created_at,visibility) VALUES(?,?,?,?,?,?,?,?,?)',id,user.id,original,category,key,file.data.length,allowed.get(ext),now(),visibility); audit(user.id,'document.upload','document',id,'success','upload_complete',requestId); }
         catch(e){ if(existsSync(join(PRIVATE,key))) unlinkSync(join(PRIVATE,key)); throw e; }
         return json(res,201,{document:docDto(q('SELECT * FROM documents WHERE id=?',id))});
       }
@@ -170,7 +186,7 @@ async function route(req,res) {
       if(docMatch) {
         const id=docMatch[1], action=docMatch[2]||''; const d=q('SELECT * FROM documents WHERE id=? AND deleted_at IS NULL',id);
         if(action==='download' && method==='GET') {
-          if(!hasDocAccess(user,d,'Read')) {audit(user.id,'document.download','document',null,'denied','not_authorised_or_not_found',requestId);return json(res,404,{error:'Document not found'});}
+          if(!hasDocAccess(user,d,'Download')) {audit(user.id,'document.download','document',null,'denied','not_authorised_or_not_found',requestId);return json(res,404,{error:'Document not found'});}
           audit(user.id,'document.download','document',id,'success','authorised_download',requestId); res.writeHead(200,{'content-type':d.mime,'content-length':d.size,'content-disposition':`attachment; filename="download${extname(d.name).replace(/[^.a-zA-Z0-9]/g,'')}"`,'cache-control':'no-store','x-content-type-options':'nosniff'}); return pipeline(createReadStream(join(PRIVATE,d.storage_key)),res);
         }
         if(action==='permissions' && method==='GET') {
