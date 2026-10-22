@@ -41,12 +41,19 @@
           <input id="document-file" name="file" type="file" accept=".pdf,.txt,.png,.jpg,.jpeg" required>
           <label for="document-category">Category</label>
           <input id="document-category" name="category" maxlength="80" value="General" required>
+          <label for="document-visibility">Visibility</label>
+          <select id="document-visibility" name="visibility"><option value="Private">Private</option><option value="Public">Public, request access required</option></select>
           <button type="submit">Upload document</button>
         </form>
       </section>
       <section class="panel">
         <div class="section-heading"><div><h2>Accessible documents</h2><p class="muted">Only documents you own or have been granted access to are listed.</p></div><button id="refresh-button" class="secondary" type="button">Refresh</button></div>
         <div id="document-list" class="document-list"><p class="muted">Loading documents…</p></div>
+      </section>
+      <section id="requests-panel" class="panel" hidden>
+        <h2>Pending access requests</h2>
+        <p class="muted">Approve or reject requests for your public documents. Approval can have an expiry date.</p>
+        <div id="request-list" class="document-list"></div>
       </section>
       <section id="admin-panel" class="panel" hidden>
         <h2>Administrator audit</h2>
