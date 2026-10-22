@@ -9,3 +9,5 @@ coverage/
 .DS_Store
 npm-debug.log*
 data/audit-hmac.key
+.env
+!.env.example
