@@ -43,6 +43,7 @@ CREATE TABLE IF NOT EXISTS grants (
   granted_by TEXT NOT NULL REFERENCES users(id),
   created_at TEXT NOT NULL,
   revoked_at TEXT,
+  expires_at TEXT,
   PRIMARY KEY(document_id,user_id)
 );
 CREATE INDEX IF NOT EXISTS idx_grants_user_active ON grants(user_id,revoked_at);
