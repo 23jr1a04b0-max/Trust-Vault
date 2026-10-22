@@ -42,6 +42,37 @@ function showAuthenticated(user, token) {
   $('admin-panel').hidden = user.role !== 'Administrator';
   loadDocuments();
 }
+async function loadAccessRequests() {
+  const list = $('request-list');
+  if (!list) return;
+  try {
+    const data = await api('/api/access-requests');
+    list.replaceChildren();
+    if (!data.requests.length) { list.append(el('p','muted','No pending requests.')); return; }
+    for (const request of data.requests) {
+      const card = el('article','document-item');
+      card.append(el('h3','',request.document_name));
+      card.append(el('p','',`${request.requester_name} (${request.requester_email}) requests ${request.permission} access`));
+      card.append(el('p','muted',`Requested: ${new Date(request.created_at).toLocaleString()}`));
+      const actions = el('div','document-actions');
+      actions.append(button('Approve', async () => {
+        const expiry = window.prompt('Optional expiry date/time in ISO format, for example 2026-12-31T23:59:00Z. Leave blank for no expiry:','');
+        if (expiry === null) return;
+        try {
+          await api(`/api/access-requests/${encodeURIComponent(request.id)}`,{method:'PATCH',body:JSON.stringify({status:'Approved',expiresAt:expiry.trim()||null})});
+          notice('Access request approved.','success'); loadAccessRequests(); loadDocuments();
+        } catch(error) { notice(error.message,'error'); }
+      }));
+      actions.append(button('Reject', async () => {
+        try {
+          await api(`/api/access-requests/${encodeURIComponent(request.id)}`,{method:'PATCH',body:JSON.stringify({status:'Rejected'})});
+          notice('Access request rejected.','success'); loadAccessRequests();
+        } catch(error) { notice(error.message,'error'); }
+      }));
+      card.append(actions); list.append(card);
+    }
+  } catch(error) { list.replaceChildren(el('p','',error.message)); }
+}
 function showSignedOut() {
   activeUser = null;
   csrfToken = '';
@@ -63,10 +94,10 @@ async function loadDocuments() {
       const card = el('article', 'document-item');
       card.append(el('h3', '', doc.name));
       card.append(el('p', '', `Category: ${doc.category || 'General'}`));
-      card.append(el('p', '', `Owner: ${doc.ownerName} · Access: ${doc.accessPermission} · ${Math.ceil(doc.size / 1024)} KB`));
+      card.append(el('p', '', `Owner: ${doc.ownerName} · Visibility: ${doc.visibility || 'Private'} · Access: ${doc.accessPermission} · ${Math.ceil(doc.size / 1024)} KB`));
       card.append(el('p', '', `Added: ${new Date(doc.createdAt).toLocaleString()}`));
       const actions = el('div', 'document-actions');
-      actions.append(button('Download', async () => {
+      if (['Owner','Download','Edit'].includes(doc.accessPermission)) actions.append(button('Download', async () => {
         try {
           const response = await fetch(`/api/documents/${encodeURIComponent(doc.id)}/download`, { credentials: 'same-origin' });
           if (!response.ok) {
@@ -147,7 +178,7 @@ $('upload-form').addEventListener('submit', async event => {
   if (!file) { notice('Choose a file first.', 'error'); return; }
   const data = new FormData();
   data.append('file', file);
-  data.append('category', $('document-category').value.trim() || 'General');
+  data.append('category', $('document-category').value.trim() || 'General');\n  data.append('visibility', $('document-visibility').value);
   try {
     await api('/api/documents', { method: 'POST', body: data });
     event.currentTarget.reset();
