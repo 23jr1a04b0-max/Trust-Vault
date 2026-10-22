@@ -13,7 +13,7 @@ test('database schema declares authorization and audit tables', () => {
   for (const table of ['users','sessions','documents','grants','audit']) {
     assert.match(schema, new RegExp(`CREATE TABLE IF NOT EXISTS ${table}\\b`));
   }
-  assert.match(schema, /CHECK\s*\(permission IN \('Read','Edit'\)\)/);
+  assert.match(schema, /CHECK\s*\(permission IN \('Read','Download','Edit'\)\)/);
   assert.match(schema, /hash_version/);
 });
 
