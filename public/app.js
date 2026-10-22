@@ -120,7 +120,7 @@ async function loadDocuments() {
         actions.append(button('Share access', async () => {
           const email = window.prompt('Enter the registered email address to share with:');
           if (!email) return;
-          const permission = window.prompt('Enter permission: Read or Edit', 'Read');
+          const permission = window.prompt('Enter permission: Read, Download, or Edit', 'Read');
           if (!permission) return;
           try {
             await api(`/api/documents/${encodeURIComponent(doc.id)}/permissions`, {
@@ -178,7 +178,7 @@ $('upload-form').addEventListener('submit', async event => {
   if (!file) { notice('Choose a file first.', 'error'); return; }
   const data = new FormData();
   data.append('file', file);
-  data.append('category', $('document-category').value.trim() || 'General');\n  data.append('visibility', $('document-visibility').value);
+  data.append('category', $('document-category').value.trim() || 'General');\n  data.append('visibility', $('document-visibility').value);\n  data.append('visibility', $('document-visibility').value);
   try {
     await api('/api/documents', { method: 'POST', body: data });
     event.currentTarget.reset();
