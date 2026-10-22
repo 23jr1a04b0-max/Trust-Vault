@@ -22,6 +22,7 @@ const sha = s => createHash('sha256').update(s).digest('hex');
 const safeEqual = (a,b) => { const aa=Buffer.from(a), bb=Buffer.from(b); return aa.length===bb.length && timingSafeEqual(aa,bb); };
 if (!DB.prepare('PRAGMA table_info(audit)').all().some(c => c.name === 'hash_version')) DB.exec('ALTER TABLE audit ADD COLUMN hash_version INTEGER NOT NULL DEFAULT 1');
 if (!DB.prepare('PRAGMA table_info(documents)').all().some(c => c.name === 'visibility')) DB.exec("ALTER TABLE documents ADD COLUMN visibility TEXT NOT NULL DEFAULT 'Private' CHECK (visibility IN ('Private','Public'))");
+if (!DB.prepare('PRAGMA table_info(grants)').all().some(c => c.name === 'expires_at')) DB.exec('ALTER TABLE grants ADD COLUMN expires_at TEXT');
 DB.exec(`CREATE TABLE IF NOT EXISTS access_requests (
   id TEXT PRIMARY KEY,
   document_id TEXT NOT NULL REFERENCES documents(id),
@@ -215,6 +216,39 @@ async function route(req,res) {
         if(!action && method==='GET') { if(!hasDocAccess(user,d)) {audit(user.id,'document.read','document',null,'denied','not_authorised_or_not_found',requestId);return json(res,404,{error:'Document not found'});} audit(user.id,'document.read','document',id,'success','authorised_metadata_read',requestId); return json(res,200,{document:docDto(d)}); }
         if(!action && method==='PATCH') { if(!hasDocAccess(user,d,'Edit')) {audit(user.id,'document.update','document',null,'denied','not_authorised_or_not_found',requestId);return json(res,404,{error:'Document not found'});} const input=await readJson(req); const name=String(input.name||'').trim(), category=String(input.category||'').trim(); if(!name||name.length>180||/[\x00-\x1f\x7f]/.test(name)||!category||category.length>80) { audit(user.id,'document.update','document',id,'denied','invalid_metadata',requestId); return json(res,400,{error:'Provide a valid document name and category.'}); } run('UPDATE documents SET name=?,category=? WHERE id=?',name,category,id); audit(user.id,'document.update','document',id,'success','metadata_updated',requestId); return json(res,200,{document:docDto(q('SELECT * FROM documents WHERE id=?',id))}); }
         if(!action && method==='DELETE') { if(!d||d.owner_id!==user.id) {audit(user.id,'document.delete','document',null,'denied','not_owner_or_not_found',requestId);return json(res,404,{error:'Document not found'});} run('UPDATE documents SET deleted_at=? WHERE id=?',now(),id); audit(user.id,'document.delete','document',id,'success','soft_deleted',requestId); return json(res,200,{ok:true}); }
+      }
+      const requestMatch=path.match(/^\/api\/documents\/([0-9a-f-]+)\/requests$/i);
+      if(requestMatch && method==='POST') {
+        const d=q('SELECT * FROM documents WHERE id=? AND deleted_at IS NULL',requestMatch[1]);
+        const input=await readJson(req), permission=input.permission;
+        if(!d || d.visibility!=='Public' || d.owner_id===user.id) { audit(user.id,'access_request.create','document',null,'denied','not_requestable_or_self_request',requestId); return json(res,404,{error:'Public document not found'}); }
+        if(!['Read','Download'].includes(permission)) return json(res,400,{error:'Permission must be Read or Download.'});
+        const existing=q("SELECT id FROM access_requests WHERE document_id=? AND requester_id=? AND permission=? AND status='Pending'",d.id,user.id,permission);
+        if(existing) return json(res,409,{error:'You already have a pending request for this permission.'});
+        const requestIdValue=randomUUID();
+        run("INSERT INTO access_requests(id,document_id,requester_id,permission,status,created_at) VALUES(?,?,?,?,'Pending',?)",requestIdValue,d.id,user.id,permission,now());
+        audit(user.id,'access_request.create','document',d.id,'success',permission,requestId);
+        return json(res,201,{ok:true,requestId:requestIdValue});
+      }
+      if(path==='/api/access-requests' && method==='GET') {
+        const rows=all("SELECT r.id,r.document_id,r.requester_id,r.permission,r.status,r.created_at,r.expires_at,d.name AS document_name,u.email AS requester_email,u.display_name AS requester_name FROM access_requests r JOIN documents d ON d.id=r.document_id JOIN users u ON u.id=r.requester_id WHERE d.owner_id=? AND r.status='Pending' AND d.deleted_at IS NULL ORDER BY r.created_at",user.id);
+        return json(res,200,{requests:rows});
+      }
+      const accessRequestMatch=path.match(/^\/api\/access-requests\/([0-9a-f-]+)$/i);
+      if(accessRequestMatch && method==='PATCH') {
+        const input=await readJson(req), status=input.status, expiresAt=input.expiresAt ? String(input.expiresAt) : null;
+        if(!['Approved','Rejected'].includes(status)) return json(res,400,{error:'Status must be Approved or Rejected.'});
+        if(expiresAt && (!Number.isFinite(Date.parse(expiresAt)) || Date.parse(expiresAt)<=Date.now())) return json(res,400,{error:'Expiry must be a future date and time.'});
+        const request= q("SELECT r.*,d.owner_id,d.deleted_at FROM access_requests r JOIN documents d ON d.id=r.document_id WHERE r.id=?",accessRequestMatch[1]);
+        if(!request || request.owner_id!==user.id || request.deleted_at || request.status!=='Pending') { audit(user.id,'access_request.decide','request',null,'denied','not_owner_or_not_pending',requestId); return json(res,404,{error:'Pending request not found'}); }
+        if(status==='Approved') {
+          const old=q('SELECT * FROM grants WHERE document_id=? AND user_id=?',request.document_id,request.requester_id);
+          if(old) run('UPDATE grants SET permission=?,granted_by=?,created_at=?,revoked_at=NULL,expires_at=? WHERE document_id=? AND user_id=?',request.permission,user.id,now(),expiresAt,request.document_id,request.requester_id);
+          else run('INSERT INTO grants(document_id,user_id,permission,granted_by,created_at,expires_at) VALUES(?,?,?,?,?,?)',request.document_id,request.requester_id,request.permission,user.id,now(),expiresAt);
+        }
+        run('UPDATE access_requests SET status=?,decided_at=?,decided_by=?,expires_at=? WHERE id=?',status,now(),user.id,expiresAt,request.id);
+        audit(user.id,'access_request.decide','document',request.document_id,'success',status+':'+request.permission,requestId);
+        return json(res,200,{ok:true,status});
       }
       if(path==='/api/users' && method==='GET') { if(user.role!=='Administrator') { audit(user.id,'admin.users.read','collection',null,'denied','administrator_role_required',requestId); return json(res,403,{error:'Administrator role required'}); } audit(user.id,'admin.users.read','collection',null,'success','account_metadata_read',requestId); return json(res,200,{users:all('SELECT id,email,display_name,role,disabled,created_at FROM users ORDER BY created_at DESC')}); }
       const userMatch=path.match(/^\/api\/users\/([0-9a-f-]+)$/i);
