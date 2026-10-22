@@ -6,5 +6,5 @@ import { readFileSync } from 'node:fs';
 const source = readFileSync('server.mjs','utf8');
 const route = source.match(/if\(action==='download' && method==='GET'\)\s*\{([\s\S]*?)\n\s*\}/);
 assert.ok(route, 'Download route must exist');
-assert.match(route[1], /hasDocAccess\(user,d,'Read'\)/, 'Download route must authorize access');
+assert.match(route[1], /hasDocAccess\(user,d,'Download'\)/, 'Download route must authorize access');
 console.log('PASS: download route includes a server-side authorization check.');
