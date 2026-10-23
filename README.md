@@ -61,6 +61,10 @@ docker compose logs --tail=100 trustvault
 
 Compose binds the app to host loopback at port 3000 and stores database/audit state and uploaded files in persistent named volumes. Configure the sample TLS/rate-limiting reverse proxy before using a public domain. Compose also runs an internal ClamAV scanner; production uploads fail closed if scanning is unavailable. See the [deployment guide](docs/DEPLOYMENT.md), [backup/restore runbook](docs/BACKUP_RESTORE.md), and [production readiness gate](docs/PRODUCTION_READINESS.md) for operational requirements.
 
+## Initial production administrator
+
+Production disables demo seeding and public administrator registration. After starting the healthy Compose stack, create the first Administrator once using the audited bootstrap script. Follow [the deployment instructions](docs/DEPLOYMENT.md) to enter the email, display name, and password as shell variables and run `docker compose exec ... node scripts/create-admin.mjs`. The script refuses to add a second Administrator, requires the production audit configuration, stores only a password hash, and records the bootstrap in the audit chain/outbox. Use a unique password manager-generated password of at least 16 characters. Administrator MFA and account recovery are still outstanding security requirements.
+
 ## Local demo accounts
 
 No accounts are created unless development seeding is explicitly enabled. For synthetic local testing only, edit `.env` and set `NODE_ENV=development`, `SEED_DEMO_USERS=true`, and `DEMO_SEED_PASSWORD` to a unique password of at least 14 characters. Then run `node --env-file=.env server.mjs`. In PowerShell, use `npm.cmd run setup` and `npm.cmd run check` if the `npm` command is blocked by script execution policy.
