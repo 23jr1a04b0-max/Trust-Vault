@@ -57,3 +57,12 @@ This journal records actual requests and corrections from the current developmen
 ## Submission follow-up required
 
 This file is intentionally honest about the missing public commit links and single-session history. To satisfy the full brief, continue the project over the actual work week, add entries after real prompt-driven changes, commit those changes, and replace each pending commit reference with its real repository URL. Do not fabricate dates, fixes, or commit links.
+
+## Entry 6: 2026-10-23, connect the UI to read-only viewing and add HTTP authorization tests
+
+- **Prompt or faithful summary:** Continue implementation in the connected feature branch without waiting for another confirmation; make TrustVault usable and verify real server behavior.
+- **Generated result:** Added a separately authorized inline content endpoint, a View action for users with Read access, HTTP integration tests for private metadata isolation, Read-versus-Download, revocation, public discovery, duplicate pending requests, and owner approval.
+- **Specific defects found:** The upload form had malformed JavaScript; access-request schema prevented later requests after earlier decisions; the previous mutation check only inspected source text rather than running the application.
+- **What I did instead:** Fixed the upload flow and access-request migration, added a disposable-server integration test, and changed the mutation check to remove the download guard in a temporary copy and require the HTTP authorization assertion to fail.
+- **Documentation:** Added API, architecture, security operations, deployment, demo, challenge write-up, and implementation notes. Live deployment and independent security review remain incomplete.
+- **Commit links:** [HTTP integration tests](https://github.com/23jr1a04b0-max/Trust-Vault/commit/40c09f727e91aef95ead37c9b179da9efce61bf1), [inline content endpoint](https://github.com/23jr1a04b0-max/Trust-Vault/commit/00cc66b30b585047a8e97a31bc1b27f63a002200), [mutation test](https://github.com/23jr1a04b0-max/Trust-Vault/commit/3d6fb02527e565ebaae9055dae777591934ec902).
