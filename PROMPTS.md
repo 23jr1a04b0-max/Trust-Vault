@@ -153,3 +153,11 @@ This file is intentionally honest about the missing public commit links and sing
 - **Generated result:** Added persistent SQLite notifications and authenticated recipient-scoped endpoints to list notifications and mark them read. New owner sign-ups notify administrators; owner account decisions notify the owner; public-document access requests notify the owner; and approval/rejection decisions notify the viewer. Added a top-right bell before the profile chip, unread badge, notification panel, mark-as-read behavior, periodic refresh, responsive styling, and integration/source checks. No email provider or email delivery was added.
 - **Verification:** Automated checks are being run against the feature branch. Treat this as implemented but not verified until the latest GitHub Actions run succeeds.
 - **Remaining gaps:** Browser-level usability/accessibility review and testing of notification refresh across multiple simultaneous sessions remain. The bell uses periodic refresh rather than push notifications.
+
+
+## Entry 18: 2026-10-23, remaining server-side hardening
+
+- **Prompt or faithful summary:** Continue the remaining security work, especially origin configuration, request resource limits, upload validation, route authorization, and regression tests.
+- **Generated result:** Added exact HTTPS origin validation, HTTP timeout/header limits, static security headers, Viewer-only access requests, upload path-separator rejection, stronger basic PDF/PNG/JPEG/TXT signature checks, invalid UTF-8 and incomplete-PDF rejection, notification retention caps, and cleanup of stale sign-up rate-limit entries. Added corresponding integration tests.
+- **Verification:** Check GitHub Actions for the newest commit; do not mark the newest batch passed until its workflow completes successfully.
+- **Remaining gaps:** Malware scanning/quarantine, full-format parsing and fuzzing, external immutable audit checkpoints and truncation detection, shared rate limiting for multi-instance deployment, production reverse-proxy validation, backups/restore, monitoring/alerting, MFA/password recovery, and independent security review.
