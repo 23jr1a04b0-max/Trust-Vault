@@ -43,7 +43,7 @@ test('production HTTP origin checks and Secure session cookie',async t=>{
     .run('test-viewer-id','viewer@trustvault.test','Production Test Viewer','Viewer',scryptSync(password,salt,64).toString('hex'),salt,new Date().toISOString());
   db.close();
   const port=await freePort(),base=`http://127.0.0.1:${port}`;
-  const child=spawn(process.execPath,['server.mjs'],{cwd:temp,env:{...process.env,NODE_ENV:'production',PORT:String(port),AUDIT_HMAC_KEY:'test-only-audit-key-with-at-least-32-bytes',TRUSTED_ORIGINS:trustedOrigin},stdio:['ignore','pipe','pipe']});
+  const child=spawn(process.execPath,['server.mjs'],{cwd:temp,env:{...process.env,NODE_ENV:'production',PORT:String(port),AUDIT_HMAC_KEY:'test-only-audit-key-with-at-least-32-bytes',AUDIT_SINK_URL:'https://audit.example.test/ingest',AUDIT_SINK_TOKEN:'test-only-audit-sink-token-with-at-least-32-bytes',TRUSTED_ORIGINS:trustedOrigin},stdio:['ignore','pipe','pipe']});
   let output='';child.stdout.on('data',c=>output+=c.toString());child.stderr.on('data',c=>output+=c.toString());
   t.after(async()=>{child.kill('SIGTERM');if(child.exitCode===null)await new Promise(resolve=>child.once('exit',resolve));rmSync(temp,{recursive:true,force:true});});
   await waitReady(base,child,()=>output);
@@ -70,7 +70,7 @@ test('production refuses malformed trusted-origin configuration',async t=>{
   for(const path of ['server.mjs','clamav.mjs','db/schema.sql']){
     const dest=join(temp,path);mkdirSync(dirname(dest),{recursive:true});copyFileSync(join(root,path),dest);
   }
-  const child=spawn(process.execPath,['server.mjs'],{cwd:temp,env:{...process.env,NODE_ENV:'production',PORT:'0',AUDIT_HMAC_KEY:'test-only-audit-key-with-at-least-32-bytes',TRUSTED_ORIGINS:'https://vault.example.test/unsafe-path'},stdio:['ignore','pipe','pipe']});
+  const child=spawn(process.execPath,['server.mjs'],{cwd:temp,env:{...process.env,NODE_ENV:'production',PORT:'0',AUDIT_HMAC_KEY:'test-only-audit-key-with-at-least-32-bytes',AUDIT_SINK_URL:'https://audit.example.test/ingest',AUDIT_SINK_TOKEN:'test-only-audit-sink-token-with-at-least-32-bytes',TRUSTED_ORIGINS:'https://vault.example.test/unsafe-path'},stdio:['ignore','pipe','pipe']});
   let output='';child.stdout.on('data',c=>output+=c.toString());child.stderr.on('data',c=>output+=c.toString());
   const code=await new Promise((resolve,reject)=>{
     const timer=setTimeout(()=>{child.kill('SIGKILL');reject(new Error('Server did not reject malformed TRUSTED_ORIGINS configuration'));},5000);
