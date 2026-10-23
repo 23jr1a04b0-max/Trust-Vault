@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, copyFileSync, rmSync, readFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, copyFileSync, rmSync, readFileSync, unlinkSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { spawn } from 'node:child_process';
@@ -54,7 +54,7 @@ test('HTTP authorization: private isolation, Read versus Download, approval and 
   legacyDb.close();
   const port = await freePort();
   const base = `http://127.0.0.1:${port}`;
-  const child = spawn(process.execPath, ['server.mjs'], {
+  let child = spawn(process.execPath, ['server.mjs'], {
     cwd: temp,
     env: { ...process.env, PORT: String(port), NODE_ENV: 'development', SEED_DEMO_USERS: 'true', DEMO_SEED_PASSWORD: password, MAX_UPLOAD_BYTES:'1024' },
     stdio: ['ignore','pipe','pipe']
@@ -393,4 +393,26 @@ test('HTTP authorization: private isolation, Read versus Download, approval and 
   const truncatedText=await truncatedAudit.text();
   assert.equal(truncatedAudit.status,500,truncatedText);
   assert.equal(JSON.parse(truncatedText).reason,'audit_checkpoint_mismatch','audit verification must detect tail deletion against the local checkpoint');
+
+  // Deleting the local checkpoint must not let a process restart silently re-anchor
+  // the altered database tail. The separate marker remembers that a checkpoint existed.
+  const checkpointPath=join(temp,'data','audit-checkpoint.json');
+  const markerPath=join(temp,'data','audit-checkpoint.initialized');
+  assert.equal(existsSync(markerPath),true,'checkpoint initialization marker must exist');
+  unlinkSync(checkpointPath);
+  child.kill('SIGTERM');
+  await new Promise(resolve=>child.once('exit',resolve));
+  child=spawn(process.execPath,['server.mjs'],{
+    cwd:temp,
+    env:{...process.env,PORT:String(port),NODE_ENV:'development',SEED_DEMO_USERS:'true',DEMO_SEED_PASSWORD:password,MAX_UPLOAD_BYTES:'1024'},
+    stdio:['ignore','pipe','pipe']
+  });
+  child.stdout.on('data',chunk=>{output+=chunk.toString();});
+  child.stderr.on('data',chunk=>{output+=chunk.toString();});
+  await waitForServer(base,child);
+  assert.equal(existsSync(checkpointPath),false,'server must not recreate a missing checkpoint after initialization');
+  const verifyAfterCheckpointDeletion=await request(admin,'/api/audit/verify',{method:'POST',body:'{}'});
+  const checkpointDeletionText=await verifyAfterCheckpointDeletion.text();
+  assert.equal(verifyAfterCheckpointDeletion.status,500,checkpointDeletionText);
+  assert.equal(JSON.parse(checkpointDeletionText).reason,'audit_checkpoint_mismatch','checkpoint deletion must remain detectable after restart');
 });
