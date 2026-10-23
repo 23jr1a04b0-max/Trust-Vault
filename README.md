@@ -99,6 +99,7 @@ The audit HMAC key must be protected independently of the database. HMAC makes d
 - [Implementation and security review](SECURITY_REVIEW.md)
 - [Threat register](THREATS.md)
 - [Deployment checklist](docs/DEPLOYMENT.md)
+- [Evidence-based production readiness gate](docs/PRODUCTION_READINESS.md)
 - [Backup and restore runbook](docs/BACKUP_RESTORE.md)
 - [Five-minute demo script](docs/DEMO_SCRIPT.md)
 - [Challenge write-up](docs/CHALLENGE_WRITEUP.md)
