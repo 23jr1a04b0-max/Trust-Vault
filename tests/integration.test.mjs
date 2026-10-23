@@ -251,7 +251,7 @@ test('HTTP authorization: private isolation, Read versus Download, approval and 
   const adminAccessRequest=await request(admin,`/api/documents/${publicDoc.id}/requests`,{method:'POST',body:JSON.stringify({permission:'Read'})});
   assert.equal(adminAccessRequest.status,403,'only Viewer accounts may request document access');
   const selfRequest = await request(owner, `/api/documents/${publicDoc.id}/requests`, {method:'POST',body:JSON.stringify({permission:'Read'})});
-  assert.equal(selfRequest.status,404,'document owners cannot request access to their own documents');
+  assert.equal(selfRequest.status,403,'document owners cannot request document access');
   const privateRequest = await request(viewer, `/api/documents/${privateDoc.id}/requests`, {method:'POST',body:JSON.stringify({permission:'Read'})});
   assert.equal(privateRequest.status,404,'private documents must not accept public access requests');
   listing = await (await request(viewer, '/api/documents')).json();
