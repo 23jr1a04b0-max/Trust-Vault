@@ -397,7 +397,8 @@ $('users-refresh').addEventListener('click', async () => {
 });
 $('mfa-enroll-button').addEventListener('click', async () => {
   try {
-    const data = await api('/api/admin/mfa/enroll',{method:'POST',body:'{}'});
+    const data = await api('/api/admin/mfa/enroll',{method:'POST',body:JSON.stringify({password:$('mfa-current-password').value})});
+    $('mfa-current-password').value = '';
     $('mfa-secret-value').textContent = data.secret;
     $('mfa-otpauth-uri').textContent = data.otpauthUri;
     $('mfa-enroll-details').hidden = false;
