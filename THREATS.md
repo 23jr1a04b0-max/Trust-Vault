@@ -46,3 +46,11 @@ Do not use this review build for confidential production documents until product
 - Nginx reverse-proxy/rate-limit templates and encrypted Restic backup/systemd timer templates are present; deployment and restore evidence are outstanding.
 - Download and inline streaming re-check the active session as well as the grant/document on each chunk. A transfer may still deliver bytes before a revocation is processed.
 - CI status is commit-specific; see [Actions](https://github.com/23jr1a04b0-max/Trust-Vault/actions). These changes do not imply a production deployment or independent security certification.
+
+
+## Administrator MFA follow-up (2026-10-23)
+
+- Production Administrator accounts must enroll TOTP before using administrator tools. Enrollment requires password reauthentication; secrets are encrypted with AES-256-GCM using the separate `MFA_ENCRYPTION_KEY`.
+- Login requires a valid TOTP time step that has not already been used. Enrollment verification is rate-limited, and tests cover the RFC 6238 vector, encryption/authentication, production enrollment gating, valid login, missing-code denial, and replay rejection.
+- The production CI workflow passed these tests on commit `2c4e4f7a2b69df3f3f1a00586a37600546368825`: [Actions run](https://github.com/23jr1a04b0-max/Trust-Vault/actions/runs/39951811278).
+- Remaining: validate with a real authenticator in staging, protect/recover the encryption key, and design a secure emergency MFA reset and password-recovery workflow. Do not lose the encryption key; encrypted TOTP secrets cannot be recovered without it.
