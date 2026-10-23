@@ -39,8 +39,10 @@ function showAuthenticated(user, token) {
   $('welcome-title').textContent = `Welcome, ${user.name}`;
   $('welcome-subtitle').textContent = user.email;
   $('upload-panel').hidden = user.role !== 'DocumentOwner';
+  $('requests-panel').hidden = user.role !== 'DocumentOwner';
   $('admin-panel').hidden = user.role !== 'Administrator';
   loadDocuments();
+  if (user.role === 'DocumentOwner') loadAccessRequests();
 }
 async function loadAccessRequests() {
   const list = $('request-list');
@@ -116,6 +118,24 @@ async function loadDocuments() {
           notice('Download started.', 'success');
         } catch (error) { notice(error.message, 'error'); }
       }, false));
+      if (doc.visibility === 'Public' && doc.accessPermission === 'Public listing') {
+        actions.append(button('Request read access', async () => {
+          try {
+            await api(`/api/documents/${encodeURIComponent(doc.id)}/requests`, {
+              method: 'POST', body: JSON.stringify({ permission: 'Read' })
+            });
+            notice('Read access request sent to the document owner.', 'success');
+          } catch (error) { notice(error.message, 'error'); }
+        }));
+        actions.append(button('Request download access', async () => {
+          try {
+            await api(`/api/documents/${encodeURIComponent(doc.id)}/requests`, {
+              method: 'POST', body: JSON.stringify({ permission: 'Download' })
+            });
+            notice('Download access request sent to the document owner.', 'success');
+          } catch (error) { notice(error.message, 'error'); }
+        }));
+      }
       if (doc.accessPermission === 'Owner') {
         actions.append(button('Share access', async () => {
           const email = window.prompt('Enter the registered email address to share with:');
