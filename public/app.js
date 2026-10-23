@@ -31,7 +31,7 @@ function showSignup() {
   $('login-panel').hidden = true;
   $('signup-panel').hidden = false;
   $('signup-title').textContent = `Create ${selectedRole === 'DocumentOwner' ? 'Document Owner' : 'Viewer'} account`;
-  $('signup-role-description').textContent = selectedRole === 'DocumentOwner' ? 'Owner accounts can upload documents and manage their own sharing permissions.' : 'Viewer accounts can access documents only when their owners grant permission.';
+  $('signup-role-description').textContent = selectedRole === 'DocumentOwner' ? 'Owner accounts can upload documents and manage their own sharing permissions after administrator approval.' : 'Viewer accounts can access documents only when their owners grant permission.';
 }
 
 function notice(message, kind = '') {
@@ -257,16 +257,17 @@ $('signup-form').addEventListener('submit', async event => {
   if (!['DocumentOwner','Viewer'].includes(selectedRole)) { notice('Choose Document Owner or Viewer to create an account.', 'error'); return; }
   const form = new FormData(event.currentTarget);
   try {
-    await api('/api/auth/signup', { method: 'POST', body: JSON.stringify({
+    const email = String(form.get('email') || '').trim();
+    const data = await api('/api/auth/signup', { method: 'POST', body: JSON.stringify({
       name: String(form.get('name') || '').trim(),
-      email: String(form.get('email') || '').trim(),
+      email,
       password: form.get('password'),
       role: selectedRole
     }) });
     event.currentTarget.reset();
     showLoginForRole(selectedRole);
-    $('email').value = String(form.get('email') || '').trim();
-    notice('Account created. Sign in with your new email and password.', 'success');
+    $('email').value = email;
+    notice(data.approvalStatus === 'Pending' ? 'Owner registration request submitted. You can sign in after an administrator approves your account.' : 'Account created. Sign in with your new email and password.', 'success');
   } catch (error) { notice(error.message, 'error'); }
 });
 $('logout-button').addEventListener('click', async () => {
@@ -308,7 +309,21 @@ $('users-refresh').addEventListener('click', async () => {
       const card=el('article','document-item');
       card.append(el('h3','',user.display_name));
       card.append(el('p','',user.email));
-      card.append(el('p','muted',`Role: ${user.role} · Status: ${user.disabled?'Disabled':'Active'} · Created: ${new Date(user.created_at).toLocaleString()}`));
+      card.append(el('p','muted',`Role: ${user.role} · Account: ${user.disabled?'Disabled':'Active'} · ${user.role==='DocumentOwner'?'Approval: '+(user.approval_status||'Approved')+' · ':''}Created: ${new Date(user.created_at).toLocaleString()}`));
+      if(user.role==='DocumentOwner' && user.approval_status==='Pending'){
+        const reviewActions=el('div','document-actions');
+        reviewActions.append(button('Approve owner request',async()=>{
+          if(!window.confirm(`Approve Document Owner account for ${user.email}?`)) return;
+          try{await api(`/api/users/${encodeURIComponent(user.id)}`,{method:'PATCH',body:JSON.stringify({approvalStatus:'Approved'})});notice('Document Owner account approved.','success');$('users-refresh').click();}
+          catch(error){notice(error.message,'error');}
+        }));
+        reviewActions.append(button('Reject owner request',async()=>{
+          if(!window.confirm(`Reject Document Owner account for ${user.email}?`)) return;
+          try{await api(`/api/users/${encodeURIComponent(user.id)}`,{method:'PATCH',body:JSON.stringify({approvalStatus:'Rejected'})});notice('Document Owner request rejected.','success');$('users-refresh').click();}
+          catch(error){notice(error.message,'error');}
+        }));
+        card.append(reviewActions);
+      }
       if(user.id!==activeUser.id){
         card.append(button(user.disabled?'Re-enable account':'Disable account',async()=>{
           const action=user.disabled?'re-enable':'disable';
