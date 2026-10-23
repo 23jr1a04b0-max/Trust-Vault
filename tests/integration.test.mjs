@@ -187,4 +187,24 @@ test('HTTP authorization: private isolation, Read versus Download, approval and 
   const downloadApproval = await request(owner,`/api/access-requests/${thirdAccessRequest.id}`,{method:'PATCH',body:JSON.stringify({status:'Approved'})});
   assert.equal(downloadApproval.status,200,await downloadApproval.text());
   assert.equal((await request(viewer,`/api/documents/${publicDoc.id}/download`)).status,200,'Download approval should enable the download endpoint');
+  const deniedLogins=[];
+  for(let i=0;i<8;i++){
+    const response=await fetch(base+'/api/auth/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email:'bad-login@trustvault.test',password:'wrong-password'})});
+    deniedLogins.push(response.status);
+  }
+  assert.equal(deniedLogins.at(-1),429,'login rate limit should return 429 after repeated attempts');
+  const verifyAfterAttempts=await request(admin,'/api/audit/verify',{method:'POST',body:'{}'});
+  const verifyAfterText=await verifyAfterAttempts.text();
+  assert.equal(verifyAfterAttempts.status,200,verifyAfterText);
+  assert.equal(JSON.parse(verifyAfterText).valid,true,'denied login attempts should be recorded without breaking audit integrity');
+  const disable=await request(admin,`/api/users/${viewer.user.id}`,{method:'PATCH',body:JSON.stringify({disabled:true})});
+  assert.equal(disable.status,200,await disable.text());
+  assert.equal((await request(viewer,'/api/documents')).status,401,'disabling an account must invalidate its existing session');
+  const logout=await request(owner,'/api/auth/logout',{method:'POST',body:'{}'});
+  assert.equal(logout.status,204);
+  assert.equal((await request(owner,'/api/auth/me')).status,401,'logout must invalidate the session immediately');
+  const finalAudit=await request(admin,'/api/audit/verify',{method:'POST',body:'{}'});
+  const finalAuditText=await finalAudit.text();
+  assert.equal(finalAudit.status,200,finalAuditText);
+  assert.equal(JSON.parse(finalAuditText).valid,true,'audit chain should remain valid after account disable and logout');
 });
