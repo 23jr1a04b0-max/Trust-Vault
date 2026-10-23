@@ -139,7 +139,30 @@ async function loadDocuments() {
           } catch (error) { notice(error.message, 'error'); }
         }));
       }
+      if (['Owner','Edit'].includes(doc.accessPermission)) {
+        actions.append(button('Edit details', async () => {
+          const name = window.prompt('Document name:', doc.name);
+          if (name === null) return;
+          const category = window.prompt('Document category:', doc.category || 'General');
+          if (category === null) return;
+          try {
+            await api(`/api/documents/${encodeURIComponent(doc.id)}`, {
+              method:'PATCH', body:JSON.stringify({name:name.trim(),category:category.trim()})
+            });
+            notice('Document details updated.','success');
+            loadDocuments();
+          } catch(error) { notice(error.message,'error'); }
+        }));
+      }
       if (doc.accessPermission === 'Owner') {
+        actions.append(button('Delete document', async () => {
+          if (!window.confirm(`Delete "${doc.name}"? This hides it from normal document listings.`)) return;
+          try {
+            await api(`/api/documents/${encodeURIComponent(doc.id)}`,{method:'DELETE',body:'{}'});
+            notice('Document deleted.','success');
+            loadDocuments();
+          } catch(error) { notice(error.message,'error'); }
+        }));
         actions.append(button('Share access', async () => {
           const email = window.prompt('Enter the registered email address to share with:');
           if (!email) return;
@@ -219,6 +242,33 @@ $('audit-refresh').addEventListener('click', async () => {
     const data = await api('/api/audit');
     $('audit-output').textContent = JSON.stringify(data.events, null, 2);
   } catch (error) { notice(error.message, 'error'); }
+});
+$('users-refresh').addEventListener('click', async () => {
+  const list=$('user-list');
+  list.replaceChildren(el('p','muted','Loading accounts…'));
+  try {
+    const data=await api('/api/users');
+    list.replaceChildren();
+    for(const user of data.users){
+      const card=el('article','document-item');
+      card.append(el('h3','',user.display_name));
+      card.append(el('p','',user.email));
+      card.append(el('p','muted',`Role: ${user.role} · Status: ${user.disabled?'Disabled':'Active'} · Created: ${new Date(user.created_at).toLocaleString()}`));
+      if(user.id!==activeUser.id){
+        card.append(button(user.disabled?'Re-enable account':'Disable account',async()=>{
+          const action=user.disabled?'re-enable':'disable';
+          if(!window.confirm(`${action} ${user.email}?`)) return;
+          try{
+            await api(`/api/users/${encodeURIComponent(user.id)}`,{method:'PATCH',body:JSON.stringify({disabled:!user.disabled})});
+            notice(`Account ${user.disabled?'enabled':'disabled'}.`,'success');
+            $('users-refresh').click();
+          }catch(error){notice(error.message,'error');}
+        }));
+      }
+      list.append(card);
+    }
+    if(!data.users.length) list.append(el('p','muted','No accounts found.'));
+  }catch(error){list.replaceChildren(el('p','',error.message));notice(error.message,'error');}
 });
 $('audit-verify').addEventListener('click', async () => {
   try {
