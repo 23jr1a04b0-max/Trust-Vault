@@ -352,6 +352,9 @@ async function route(req,res) {
       if(path==='/api/admin/mfa/enroll' && method==='POST') {
         if(user.role!=='Administrator') { audit(user.id,'admin.mfa.enroll','user',user.id,'denied','administrator_role_required',requestId); return json(res,403,{error:'Administrator role required'}); }
         if(user.mfa_enabled) { audit(user.id,'admin.mfa.enroll','user',user.id,'denied','mfa_already_enabled',requestId); return json(res,409,{error:'Administrator MFA is already enabled.'}); }
+        const enrollmentInput=await readJson(req);
+        const credentials=q('SELECT * FROM users WHERE id=?',user.id);
+        if(!enrollmentInput.password || !(await verifyPassword(String(enrollmentInput.password),credentials))) { audit(user.id,'admin.mfa.enroll','user',user.id,'denied','password_reauthentication_failed',requestId); return json(res,403,{error:'Confirm your administrator password to begin MFA setup.'}); }
         const secret=generateTotpSecret();
         run('UPDATE users SET mfa_secret_enc=? WHERE id=?',encryptTotpSecret(secret,MFA_ENCRYPTION_KEY),user.id);
         audit(user.id,'admin.mfa.enroll','user',user.id,'success','totp_secret_created_pending_verification',requestId);
