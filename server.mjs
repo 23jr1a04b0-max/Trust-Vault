@@ -351,9 +351,9 @@ async function route(req,res) {
         const input=await readJson(req), permission=input.permission;
         if(user.role!=='Viewer') { audit(user.id,'access_request.create','document',null,'denied','viewer_role_required',requestId); return json(res,403,{error:'Only Viewer accounts can request document access.'}); }
         if(!d || d.visibility!=='Public' || d.owner_id===user.id) { audit(user.id,'access_request.create','document',null,'denied','not_requestable_or_self_request',requestId); return json(res,404,{error:'Public document not found'}); }
-        if(!['Read','Download'].includes(permission)) { audit(user.id,'access_request.create','document',id,'denied','invalid_requested_permission',requestId); return json(res,400,{error:'Permission must be Read or Download.'}); }
+        if(!['Read','Download'].includes(permission)) { audit(user.id,'access_request.create','document',d.id,'denied','invalid_requested_permission',requestId); return json(res,400,{error:'Permission must be Read or Download.'}); }
         const existing=q("SELECT id FROM access_requests WHERE document_id=? AND requester_id=? AND permission=? AND status='Pending'",d.id,user.id,permission);
-        if(existing) { audit(user.id,'access_request.create','document',id,'denied','duplicate_pending_request',requestId); return json(res,409,{error:'You already have a pending request for this permission.'}); }
+        if(existing) { audit(user.id,'access_request.create','document',d.id,'denied','duplicate_pending_request',requestId); return json(res,409,{error:'You already have a pending request for this permission.'}); }
         const requestIdValue=randomUUID();
         run("INSERT INTO access_requests(id,document_id,requester_id,permission,status,created_at) VALUES(?,?,?,?,'Pending',?)",requestIdValue,d.id,user.id,permission,now());
         audit(user.id,'access_request.create','document',d.id,'success',permission,requestId);
