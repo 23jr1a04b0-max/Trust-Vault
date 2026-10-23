@@ -130,8 +130,8 @@ function currentUser(req) {
   const tokenHash=sha(token), current=Date.now();
   const s=q('SELECT * FROM sessions WHERE id_hash=? AND expires_at>? AND last_seen_at>?',tokenHash,current,current-IDLE_SESSION_MS);
   if(!s) { if(token) run('DELETE FROM sessions WHERE id_hash=? AND (expires_at<=? OR last_seen_at<=?)',tokenHash,current,current-IDLE_SESSION_MS); return null; }
-  const u=q('SELECT id,email,display_name,role,disabled FROM users WHERE id=?',s.user_id);
-  if(!u || u.disabled) {run('DELETE FROM sessions WHERE id_hash=?',tokenHash);return null;}
+  const u=q('SELECT id,email,display_name,role,disabled,approval_status FROM users WHERE id=?',s.user_id);
+  if(!u || u.disabled || (u.role==='DocumentOwner' && u.approval_status!=='Approved')) {run('DELETE FROM sessions WHERE id_hash=?',tokenHash);return null;}
   run('UPDATE sessions SET last_seen_at=? WHERE id_hash=?',current,tokenHash);
   return {...u,csrf:s.csrf,sessionHash:tokenHash};
 }
