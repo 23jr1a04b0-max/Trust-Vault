@@ -1,10 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, copyFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, copyFileSync, rmSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { spawn } from 'node:child_process';
 import net from 'node:net';
+import { DatabaseSync } from 'node:sqlite';
 
 const root = process.cwd();
 const password = 'TrustVault-Demo-2026!';
@@ -32,6 +33,25 @@ test('HTTP authorization: private isolation, Read versus Download, approval and 
   for (const path of ['server.mjs','db/schema.sql','public/index.html','public/app.css','public/app.js','public/404.html']) {
     const dest = join(temp, path); mkdirSync(dirname(dest), { recursive: true }); copyFileSync(join(root, path), dest);
   }
+  // Simulate the earlier branch schema, which had an overly restrictive UNIQUE constraint.
+  mkdirSync(join(temp, 'data'), { recursive: true });
+  const legacyDb = new DatabaseSync(join(temp, 'data', 'trustvault.sqlite'));
+  legacyDb.exec(readFileSync(join(root, 'db/schema.sql'), 'utf8'));
+  legacyDb.exec(`DROP TABLE access_requests;
+    CREATE TABLE access_requests (
+      id TEXT PRIMARY KEY,
+      document_id TEXT NOT NULL REFERENCES documents(id),
+      requester_id TEXT NOT NULL REFERENCES users(id),
+      permission TEXT NOT NULL CHECK(permission IN ('Read','Download')),
+      status TEXT NOT NULL DEFAULT 'Pending' CHECK(status IN ('Pending','Approved','Rejected','Cancelled')),
+      created_at TEXT NOT NULL,
+      decided_at TEXT,
+      decided_by TEXT REFERENCES users(id),
+      expires_at TEXT,
+      UNIQUE(document_id,requester_id,permission,status)
+    );
+    CREATE INDEX idx_access_requests_owner_status ON access_requests(document_id,status,created_at);`);
+  legacyDb.close();
   const port = await freePort();
   const base = `http://127.0.0.1:${port}`;
   const child = spawn(process.execPath, ['server.mjs'], {
@@ -133,4 +153,13 @@ test('HTTP authorization: private isolation, Read versus Download, approval and 
   content = await request(viewer, `/api/documents/${publicDoc.id}/content`);
   assert.equal(content.status, 200, 'approved Read request should grant inline viewing');
   assert.equal((await request(viewer, `/api/documents/${publicDoc.id}/download`)).status, 404);
+  const secondRequest = await request(viewer, `/api/documents/${publicDoc.id}/requests`, { method: 'POST', body: JSON.stringify({ permission: 'Read' }) });
+  assert.equal(secondRequest.status, 201, 'a new request must be possible after a prior decision');
+  const secondPending = await (await request(owner, '/api/access-requests')).json();
+  const secondAccessRequest = secondPending.requests.find(item => item.document_id === publicDoc.id && item.requester_id === viewer.user.id);
+  assert.ok(secondAccessRequest);
+  const secondApprove = await request(owner, `/api/access-requests/${secondAccessRequest.id}`, {
+    method: 'PATCH', body: JSON.stringify({ status: 'Approved' })
+  });
+  assert.equal(secondApprove.status, 200, await secondApprove.text(), 'repeated approval must work after migration from the legacy constraint');
 });
