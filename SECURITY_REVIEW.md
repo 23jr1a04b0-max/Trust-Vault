@@ -4,7 +4,7 @@ Review date: 2026-10-23
 
 ## Scope and branch
 
-This review describes the GitHub working branch `23jr1a04b0-max-patch-1`. Changes have been committed to this branch; `main` has not been changed by this work. This is an implementation review, not an independent security assessment.
+This review describes the GitHub working branch `security-hardening-followup`. Changes have been committed to this branch; `main` has not been changed by this work. This is an implementation review, not an independent security assessment.
 
 ## Automated checks verified on GitHub Actions
 
@@ -72,3 +72,12 @@ These changes do not close the deployment blockers above. No live domain/proxy v
 - [GitHub Actions run for this exact commit](https://github.com/23jr1a04b0-max/Trust-Vault/actions/runs/39951811278) completed successfully, including JavaScript syntax checks, automated tests, TOTP enrollment/login/replay tests, authorization mutation test, proxy configuration tests, bootstrap test, backup script syntax, production container build, and health smoke test.
 - Audit row/outbox writes are transactional, audit receiver requests cannot follow redirects, and streaming guards re-check session validity in addition to document/grant authorization.
 - A one-time audited initial Administrator bootstrap command and regression test are included. Production administrator access now requires TOTP enrollment and a valid non-replayed code after enrollment; TOTP secrets are encrypted with a separate `MFA_ENCRYPTION_KEY` and setup requires password reauthentication. The application code and CI still cannot provision an external append-only audit receiver, real TLS domain, remote backup repository, or external alerting, and cannot replace an independent penetration test. Secure password recovery and an MFA recovery procedure remain outstanding.
+
+
+## Current-head verification update (2026-10-23)
+
+- Current reviewed branch: `security-hardening-followup`.
+- Current head at the time of this update: `b7610e9880c25f6b60e93500d541a86adbd48d49`.
+- [GitHub Actions for this head](https://github.com/23jr1a04b0-max/Trust-Vault/actions/runs/39952536998) completed successfully. The workflow reports success for `npm run check`, backup-script syntax validation, production container build, and production health smoke test.
+- This validates repository CI only. It does not validate a real authenticator, production secrets, a live HTTPS proxy/domain, a separately administered immutable audit receiver, off-host backup restoration, monitoring/alerting, emergency account recovery, or independent penetration testing.
+- Release status remains **NOT READY for confidential production data** until the external checklist in `docs/PRODUCTION_READINESS.md` has evidence.
