@@ -13,7 +13,19 @@
 <body>
   <header class="topbar">
     <a class="brand" href="/" aria-label="TrustVault home">TrustVault</a>
-    <div id="session-status" class="muted">Secure document workspace</div>
+    <div class="topbar-right">
+      <div id="session-status" class="muted">Secure document workspace</div>
+      <div id="topbar-user" class="topbar-user" hidden>
+        <button id="notifications-toggle" class="icon-button" type="button" aria-label="Open notifications" aria-expanded="false" title="Notifications">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg>
+          <span id="notification-count" class="notification-count" hidden>0</span>
+        </button>
+        <div class="profile-chip" aria-label="Signed-in profile">
+          <span class="profile-avatar" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c.5-4 3-6 7-6s6.5 2 7 6"/></svg></span>
+          <span id="profile-name">Profile</span>
+        </div>
+      </div>
+    </div>
   </header>
   <main class="page">
     <section id="notice" class="notice" role="status" aria-live="polite" hidden></section>
@@ -62,6 +74,10 @@
       </section>
     </section>
     <section id="app-panel" hidden>
+      <section id="notifications-panel" class="panel notifications-panel" hidden>
+        <div class="section-heading"><div><h2>Notifications</h2><p class="muted">Updates for your account and role.</p></div><button id="notifications-refresh" class="secondary" type="button">Refresh</button></div>
+        <div id="notification-list" class="document-list"><p class="muted">Loading notifications…</p></div>
+      </section>
       <div class="welcome-row">
         <div><p class="eyebrow">YOUR WORKSPACE</p><h1 id="welcome-title">Documents</h1><p id="welcome-subtitle" class="muted"></p></div>
         <button id="logout-button" class="secondary" type="button">Sign out</button>
