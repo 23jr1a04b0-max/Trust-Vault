@@ -48,3 +48,11 @@ TrustVault is a working review build with a passing CI and container smoke test.
 Additional changes on the same feature branch validate exact HTTPS origins at startup, bound HTTP header/request/keep-alive timing, apply CSP and related security headers to static responses, limit access requests to Viewer accounts, reject path-bearing upload filenames, strengthen basic format-signature checks, reject invalid UTF-8 text and incomplete PDFs, bound notification retention per user, and clean stale sign-up rate-limit entries. Integration tests were added for these cases. Check the workflow run for the latest commit before relying on its result.
 
 These changes do not close the deployment blockers above. No live domain/proxy verification, malware scanning/quarantine, shared multi-instance rate limiter, external immutable audit checkpoint, backup/restore drill, monitoring/alerting, MFA/password recovery, or independent security assessment has been completed in this work.
+
+
+## Security hardening follow-up (2026-10-23, automated branch changes)
+
+- Download streaming now rechecks current document and grant authorization as chunks are emitted, reducing the window in which a revocation or deletion can go unnoticed during a large transfer. This cannot retract bytes already delivered to a client.
+- A local audit checkpoint records the latest sequence/hash and is checked during verification. The checkpoint is deliberately not reset when its anchored database event disappears, so database-only tail deletion remains detectable. This checkpoint is stored on the same host and is **not** an external immutable anchor; host/key compromise can defeat it.
+- Added an integration regression test that deletes the latest audit event and expects verification to report a checkpoint mismatch.
+- The changes are on `security-hardening-followup`; no changes have been made to `main`. Automated CI must pass before these changes should be considered validated.
