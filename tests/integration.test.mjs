@@ -84,9 +84,9 @@ test('HTTP authorization: private isolation, Read versus Download, approval and 
     if (session && options.method && !['GET','HEAD'].includes(options.method)) headers.set('x-csrf-token', session.csrf);
     return fetch(base + path, { ...options, headers });
   }
-  async function upload(owner, visibility, name) {
+  async function upload(owner, visibility, name, bytes = 'TrustVault test document') {
     const form = new FormData();
-    form.append('file', new Blob(['TrustVault test document'], { type: 'text/plain' }), name);
+    form.append('file', new Blob([bytes], { type: 'text/plain' }), name);
     form.append('category', 'Tests');
     form.append('visibility', visibility);
     const response = await request(owner, '/api/documents', { method: 'POST', body: form });
@@ -100,6 +100,17 @@ test('HTTP authorization: private isolation, Read versus Download, approval and 
   assert.equal((await fetch(base + '/api/documents')).status, 401);
 
   const privateDoc = await upload(owner, 'Private', 'private.txt');
+  const binaryBytes = Buffer.from([0x54,0x56,0x00,0x01,0xff,0x80,0x0d,0x0a,0x41]);
+  const binaryForm = new FormData();
+  binaryForm.append('file', new Blob([binaryBytes], { type: 'text/plain' }), 'binary.txt');
+  binaryForm.append('category','Tests');
+  binaryForm.append('visibility','Private');
+  const binaryUpload = await request(owner, '/api/documents', { method:'POST', body:binaryForm });
+  const binaryText = await binaryUpload.text();
+  assert.equal(binaryUpload.status,400,'NUL bytes must be rejected in TXT files');
+  const boundary = '----trustvault-malformed-test';
+  const malformed = await request(owner,'/api/documents',{method:'POST',headers:{'content-type':`multipart/form-data; boundary=${boundary}`},body:`--${boundary}\\r\\nContent-Disposition: form-data; name="file"; filename="x.txt"\\r\\nContent-Type: text/plain\\r\\n\\r\\nmissing closing boundary`});
+  assert.equal(malformed.status,400,'malformed multipart must be rejected cleanly');
   let listing = await (await request(viewer, '/api/documents')).json();
   assert.ok(!listing.documents.some(doc => doc.id === privateDoc.id), 'private document metadata must not be discoverable');
 
@@ -159,7 +170,17 @@ test('HTTP authorization: private isolation, Read versus Download, approval and 
   const secondAccessRequest = secondPending.requests.find(item => item.document_id === publicDoc.id && item.requester_id === viewer.user.id);
   assert.ok(secondAccessRequest);
   const secondApprove = await request(owner, `/api/access-requests/${secondAccessRequest.id}`, {
-    method: 'PATCH', body: JSON.stringify({ status: 'Approved' })
+    method: 'PATCH', body: JSON.stringify({ status: 'Approved', expiresAt: new Date(Date.now()+60_000).toISOString() })
   });
   assert.equal(secondApprove.status, 200, await secondApprove.text(), 'repeated approval must work after migration from the legacy constraint');
+  const thirdRequest = await request(viewer, `/api/documents/${publicDoc.id}/requests`, { method:'POST', body:JSON.stringify({permission:'Download'}) });
+  assert.equal(thirdRequest.status,201,await thirdRequest.text());
+  const thirdPending = await (await request(owner,'/api/access-requests')).json();
+  const thirdAccessRequest = thirdPending.requests.find(item=>item.document_id===publicDoc.id&&item.requester_id===viewer.user.id&&item.permission==='Download');
+  assert.ok(thirdAccessRequest);
+  const expiredApproval = await request(owner,`/api/access-requests/${thirdAccessRequest.id}`,{method:'PATCH',body:JSON.stringify({status:'Approved',expiresAt:new Date(Date.now()-1000).toISOString()})});
+  assert.equal(expiredApproval.status,400,'past-dated grant expiry must be rejected');
+  const downloadApproval = await request(owner,`/api/access-requests/${thirdAccessRequest.id}`,{method:'PATCH',body:JSON.stringify({status:'Approved'})});
+  assert.equal(downloadApproval.status,200,await downloadApproval.text());
+  assert.equal((await request(viewer,`/api/documents/${publicDoc.id}/download`)).status,200,'Download approval should enable the download endpoint');
 });
