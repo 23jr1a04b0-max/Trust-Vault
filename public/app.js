@@ -99,6 +99,9 @@ async function loadDocuments() {
       card.append(el('p', '', `Owner: ${doc.ownerName} · Visibility: ${doc.visibility || 'Private'} · Access: ${doc.accessPermission} · ${Math.ceil(doc.size / 1024)} KB`));
       card.append(el('p', '', `Added: ${new Date(doc.createdAt).toLocaleString()}`));
       const actions = el('div', 'document-actions');
+      if (['Owner','Read','Download','Edit'].includes(doc.accessPermission)) actions.append(button('View', () => {
+        window.open(`/api/documents/${encodeURIComponent(doc.id)}/content`, '_blank', 'noopener');
+      }));
       if (['Owner','Download','Edit'].includes(doc.accessPermission)) actions.append(button('Download', async () => {
         try {
           const response = await fetch(`/api/documents/${encodeURIComponent(doc.id)}/download`, { credentials: 'same-origin' });
