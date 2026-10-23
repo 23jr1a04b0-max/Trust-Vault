@@ -92,3 +92,11 @@ This file is intentionally honest about the missing public commit links and sing
 - **Verification:** GitHub Actions passed `npm run check`, including the HTTP integration tests and authorization mutation test, and passed the Docker build/health-check step.
 - **Remaining gap:** Detecting event modification does not prevent privileged host compromise or reliably detect deletion of the tail of the chain. External immutable checkpoints and broader route-by-route testing remain necessary.
 - **Commit:** [Audit tampering test](https://github.com/23jr1a04b0-max/Trust-Vault/commit/9df2014cdf0181e593bb797219ac6094e0be5866).
+
+## Entry 10: 2026-10-23, exercise session expiry behavior through HTTP
+
+- **Prompt or faithful summary:** Continue improving TrustVault without waiting for another reply, prioritizing security tests that can be run automatically.
+- **Generated result:** Extended the disposable HTTP integration test to age a session past the 30-minute idle window and set another session past its absolute expiry, then verify both are rejected. Fresh sessions are used afterward to continue account-disable and logout assertions.
+- **Verification:** GitHub Actions passed `npm run check`, including the integration and mutation tests. The Docker health-check step was running at the time this entry was prepared; the run status is linked below for confirmation.
+- **Remaining gaps:** Broader route/role matrix, complex file parser cases, audit-chain tail truncation detection, and concurrent stream revocation still need work.
+- **Commit:** [Session expiry tests](https://github.com/23jr1a04b0-max/Trust-Vault/commit/e91771f3a1701dda753797d0fa4b4f08a795a009).
