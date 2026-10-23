@@ -344,7 +344,7 @@ async function route(req,res) {
       if(path==='/api/auth/logout' && method==='POST') { if(!user) return json(res,204,{}); requireCsrf(req,user); run('DELETE FROM sessions WHERE id_hash=?',user.sessionHash); audit(user.id,'auth.logout','user',user.id,'success','session_ended',requestId); return json(res,204,{}, {'set-cookie':`tv_session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0${process.env.NODE_ENV==='production'?'; Secure':''}`}); }
       if(!user) { audit(null,'auth.required', 'route', path,'denied','unauthenticated',requestId); return json(res,401,{error:'Authentication required'}); }
       if(method!=='GET') requireCsrf(req,user);
-      if(user.role==='Administrator' && !user.mfa_enabled && !['/api/auth/me','/api/auth/logout','/api/admin/mfa/enroll','/api/admin/mfa/verify'].includes(path)) {
+      if(process.env.NODE_ENV==='production' && user.role==='Administrator' && !user.mfa_enabled && !['/api/auth/me','/api/auth/logout','/api/admin/mfa/enroll','/api/admin/mfa/verify'].includes(path)) {
         audit(user.id,'admin.mfa.required','route',path,'denied','administrator_mfa_enrollment_required',requestId);
         return json(res,403,{error:'Set up administrator multi-factor authentication before using administrator tools.'});
       }
