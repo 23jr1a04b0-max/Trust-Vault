@@ -236,7 +236,7 @@ function currentUser(req) {
   const u=q('SELECT id,email,display_name,role,disabled,approval_status,mfa_enabled FROM users WHERE id=?',s.user_id);
   if(!u || u.disabled || (u.role==='DocumentOwner' && u.approval_status!=='Approved')) {run('DELETE FROM sessions WHERE id_hash=?',tokenHash);return null;}
   run('UPDATE sessions SET last_seen_at=? WHERE id_hash=?',current,tokenHash);
-  return {...u,mfaEnabled:Boolean(u.mfa_enabled),csrf:s.csrf,sessionHash:tokenHash};
+  return {...u,mfaEnabled:Boolean(u.mfa_enabled),mfaRequired:process.env.NODE_ENV==='production',csrf:s.csrf,sessionHash:tokenHash};
 }
 function configuredProductionOrigins() {
   if(process.env.NODE_ENV!=='production') return [];
@@ -339,9 +339,9 @@ async function route(req,res) {
         const token=randomBytes(32).toString('base64url'), csrf=randomBytes(24).toString('base64url'), created=Date.now(), expires=created+ABSOLUTE_SESSION_MS;
         run('INSERT INTO sessions(id_hash,user_id,csrf,expires_at,last_seen_at) VALUES(?,?,?,?,?)',sha(token),u.id,csrf,expires,created);
         const secure=process.env.NODE_ENV==='production'?'; Secure':'';
-        return json(res,200,{user:{id:u.id,email:u.email,name:u.display_name,role:u.role,mfaEnabled:Boolean(u.mfa_enabled)},csrfToken:csrf},{'set-cookie':`tv_session=${encodeURIComponent(token)}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${Math.floor(ABSOLUTE_SESSION_MS/1000)}${secure}`});
+        return json(res,200,{user:{id:u.id,email:u.email,name:u.display_name,role:u.role,mfaEnabled:Boolean(u.mfa_enabled),mfaRequired:process.env.NODE_ENV==='production'},csrfToken:csrf},{'set-cookie':`tv_session=${encodeURIComponent(token)}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${Math.floor(ABSOLUTE_SESSION_MS/1000)}${secure}`});
       }
-      if(path==='/api/auth/me' && method==='GET') return user?json(res,200,{user:{id:user.id,email:user.email,name:user.display_name,role:user.role,mfaEnabled:Boolean(user.mfa_enabled)},csrfToken:user.csrf}):json(res,401,{error:'Authentication required'});
+      if(path==='/api/auth/me' && method==='GET') return user?json(res,200,{user:{id:user.id,email:user.email,name:user.display_name,role:user.role,mfaEnabled:Boolean(user.mfa_enabled),mfaRequired:process.env.NODE_ENV==='production'},csrfToken:user.csrf}):json(res,401,{error:'Authentication required'});
       if(path==='/api/auth/logout' && method==='POST') { if(!user) return json(res,204,{}); requireCsrf(req,user); run('DELETE FROM sessions WHERE id_hash=?',user.sessionHash); audit(user.id,'auth.logout','user',user.id,'success','session_ended',requestId); return json(res,204,{}, {'set-cookie':`tv_session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0${process.env.NODE_ENV==='production'?'; Secure':''}`}); }
       if(!user) { audit(null,'auth.required', 'route', path,'denied','unauthenticated',requestId); return json(res,401,{error:'Authentication required'}); }
       if(method!=='GET') requireCsrf(req,user);
