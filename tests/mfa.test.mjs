@@ -5,7 +5,9 @@ import { base32Encode, base32Decode, generateTotpSecret, generateTotpCode, encry
 test('base32 round-trips generated authenticator secrets', () => {
   const secret = generateTotpSecret();
   assert.equal(base32Encode(base32Decode(secret)),secret);
-  assert.equal(secret.length,32);\n  const code=generateTotpCode(secret,59_000);\n  assert.equal(verifyTotp(secret,code,{now:59_000,window:0}),1);
+  assert.equal(secret.length,32);
+  const code=generateTotpCode(secret,59_000);
+  assert.equal(verifyTotp(secret,code,{now:59_000,window:0}),1);
 });
 
 test('TOTP matches the RFC 6238 SHA-1 test vector at 59 seconds', () => {
