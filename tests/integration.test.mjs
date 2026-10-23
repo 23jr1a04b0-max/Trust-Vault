@@ -353,6 +353,13 @@ test('HTTP authorization: private isolation, Read versus Download, approval and 
   const finalAuditText=await finalAudit.text();
   assert.equal(finalAudit.status,200,finalAuditText);
   assert.equal(JSON.parse(finalAuditText).valid,true,'audit chain should remain valid after account disable and logout');
+  const auditFeedResponse=await request(admin,'/api/audit');
+  assert.equal(auditFeedResponse.status,200);
+  const auditFeed=(await auditFeedResponse.json()).events;
+  assert.ok(auditFeed.some(e=>e.action==='permission.grant'&&e.reason==='invalid_grant_expiry'&&e.outcome==='denied'),'invalid grant expiry must be audited');
+  assert.ok(auditFeed.some(e=>e.action==='access_request.create'&&e.reason==='duplicate_pending_request'&&e.outcome==='denied'),'duplicate access request must be audited');
+  assert.ok(auditFeed.some(e=>e.action==='access_request.decide'&&e.reason==='invalid_grant_expiry'&&e.outcome==='denied'),'invalid access-request expiry decision must be audited');
+  assert.ok(auditFeed.some(e=>e.action==='user.disable'&&e.reason==='self_disable_rejected'&&e.outcome==='denied'),'rejected self-disable must be audited');
   const tamperDb=new DatabaseSync(join(temp,'data','trustvault.sqlite'));
   tamperDb.prepare("UPDATE audit SET reason='tampered-after-write' WHERE seq=(SELECT MAX(seq) FROM audit)").run();
   tamperDb.close();
