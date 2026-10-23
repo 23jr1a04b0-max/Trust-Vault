@@ -346,7 +346,10 @@ test('HTTP authorization: private isolation, Read versus Download, approval and 
   absoluteDb.prepare('UPDATE sessions SET expires_at=? WHERE user_id=?').run(Date.now()-1000,owner.user.id);
   absoluteDb.close();
   assert.equal((await request(owner,'/api/auth/me')).status,401,'absolute session expiry must be enforced even when a session was recently active');
-  const ownerFresh=await login('owner@trustvault.test');
+  const restoreSessionDb=new DatabaseSync(join(temp,'data','trustvault.sqlite'));
+  restoreSessionDb.prepare('UPDATE sessions SET expires_at=? WHERE user_id=?').run(Date.now()+24*60*60*1000,owner.user.id);
+  restoreSessionDb.close();
+  const ownerFresh=owner;
   const deniedLogins=[];
   for(let i=0;i<8;i++){
     const response=await fetch(base+'/api/auth/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email:'bad-login@trustvault.test',password:'wrong-password'})});
