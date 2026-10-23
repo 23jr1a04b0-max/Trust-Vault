@@ -28,7 +28,7 @@ The repository includes a non-root production image and a Compose file with pers
 6. Build and start with `docker compose up --build -d`.
 7. Check `docker compose ps` and `docker compose logs --tail=100 trustvault`. Test the health endpoint locally with `curl http://127.0.0.1:3000/api/health`.
 8. Configure the TLS reverse proxy to forward to `127.0.0.1:3000`, then verify login, Origin checks, uploads, grants, revocation, and audit verification through the real HTTPS domain.
-9. Back up the named volumes consistently and test restoration before storing any important data.
+9. Follow the [Backup and Restore Runbook](BACKUP_RESTORE.md) to create consistent backups, protect them off-host, and test restoration in isolated staging before storing any important data.
 
 The CI workflow builds the image and starts it briefly to smoke-test the health endpoint. This is a container smoke test, not proof of a secure production deployment. Use a persistent host and independent backups; do not deploy confidential files until the known limitations below are addressed.
 
