@@ -151,6 +151,19 @@ test('HTTP authorization: private isolation, Read versus Download, approval and 
   assert.equal((await fetch(base + '/api/documents')).status, 401);
 
   const privateDoc = await upload(owner, 'Private', 'private.txt');
+  const secondOwnerSignup=await fetch(base+'/api/auth/signup',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({name:'Second Owner',email:'second-owner@trustvault.test',password:'Long-Enough-Second-Owner-123',role:'DocumentOwner'})});
+  const secondOwnerSignupData=await secondOwnerSignup.json();
+  assert.equal(secondOwnerSignup.status,201,JSON.stringify(secondOwnerSignupData));
+  const approveSecondOwner=await request(admin,'/api/users/'+secondOwnerSignupData.userId,{method:'PATCH',body:JSON.stringify({approvalStatus:'Approved'})});
+  assert.equal(approveSecondOwner.status,200,await approveSecondOwner.text());
+  const secondOwner=await login('second-owner@trustvault.test');
+  const secondOwnerDoc=await upload(secondOwner,'Private','second-owner-private.txt','second owner secret');
+  assert.equal((await request(owner,'/api/documents/'+secondOwnerDoc.id+'/content')).status,404,'one owner must not read another owner\'s private document without a grant');
+  assert.equal((await request(owner,'/api/documents/'+secondOwnerDoc.id+'/download')).status,404,'one owner must not download another owner\'s private document without a grant');
+  assert.equal((await request(owner,'/api/documents/'+secondOwnerDoc.id+'/permissions')).status,404,'one owner must not inspect another owner\'s grants');
+  assert.equal((await request(owner,'/api/documents/'+secondOwnerDoc.id+'/audit')).status,404,'one owner must not inspect another owner\'s document audit');
+  assert.equal((await request(owner,'/api/documents/'+secondOwnerDoc.id,{method:'PATCH',body:JSON.stringify({name:'hijacked.txt'})})).status,404,'one owner must not edit another owner\'s document');
+  assert.equal((await request(owner,'/api/documents/'+secondOwnerDoc.id,{method:'DELETE',body:'{}'})).status,404,'one owner must not delete another owner\'s document');
   assert.equal((await request(viewer, '/api/documents/'+privateDoc.id+'/permissions')).status,404,'non-owners must not inspect a document grant list');
   assert.equal((await request(viewer, '/api/documents/'+privateDoc.id+'/audit')).status,404,'non-owners must not inspect a document audit trail');
   const unauthorizedGrant=await request(viewer,'/api/documents/'+privateDoc.id+'/permissions',{method:'POST',body:JSON.stringify({email:'admin@trustvault.test',permission:'Download'})});
