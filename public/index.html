@@ -17,18 +17,49 @@
   </header>
   <main class="page">
     <section id="notice" class="notice" role="status" aria-live="polite" hidden></section>
-    <section id="auth-panel" class="panel auth-panel">
-      <p class="eyebrow">SECURE DOCUMENT WORKSPACE</p>
-      <h1>Sign in to TrustVault</h1>
-      <p class="muted">Use your TrustVault account to access documents shared with you.</p>
-      <form id="login-form">
-        <label for="email">Email address</label>
-        <input id="email" name="email" type="email" autocomplete="username" required maxlength="254">
-        <label for="password">Password</label>
-        <input id="password" name="password" type="password" autocomplete="current-password" required maxlength="1024">
-        <button type="submit">Sign in</button>
-      </form>
-      <p class="small muted">Demo accounts are available only when an administrator has explicitly enabled local demo seeding.</p>
+    <section id="auth-panel">
+      <section id="role-panel" class="panel auth-panel">
+        <p class="eyebrow">SECURE DOCUMENT WORKSPACE</p>
+        <h1>Welcome to TrustVault</h1>
+        <p class="muted">Choose the account type you want to sign in with.</p>
+        <div class="role-options">
+          <button class="role-option" type="button" data-role="DocumentOwner"><strong>Document Owner</strong><span>Upload documents and manage access.</span></button>
+          <button class="role-option" type="button" data-role="Viewer"><strong>Viewer</strong><span>Access documents shared with you.</span></button>
+          <button class="role-option" type="button" data-role="Administrator"><strong>Administrator</strong><span>Manage accounts and review security activity.</span></button>
+        </div>
+        <p class="small muted">Your selected role does not grant permissions. TrustVault checks the role assigned to your account.</p>
+      </section>
+      <section id="login-panel" class="panel auth-panel" hidden>
+        <p class="eyebrow">TRUSTVAULT SIGN IN</p>
+        <h1 id="login-title">Sign in</h1>
+        <p id="login-role-description" class="muted"></p>
+        <button id="change-role" class="secondary" type="button">Choose another role</button>
+        <form id="login-form">
+          <label for="email">Email address</label>
+          <input id="email" name="email" type="email" autocomplete="username" required maxlength="254">
+          <label for="password">Password</label>
+          <input id="password" name="password" type="password" autocomplete="current-password" required maxlength="1024">
+          <button type="submit">Sign in</button>
+        </form>
+        <p id="signup-prompt" class="small muted">New to TrustVault? <button id="show-signup" class="inline-button" type="button">Create an account</button></p>
+        <p class="small muted">Administrator accounts are created through trusted administration, not public sign-up.</p>
+      </section>
+      <section id="signup-panel" class="panel auth-panel" hidden>
+        <p class="eyebrow">CREATE YOUR ACCOUNT</p>
+        <h1 id="signup-title">Sign up</h1>
+        <p id="signup-role-description" class="muted">Create a TrustVault account.</p>
+        <form id="signup-form">
+          <label for="signup-name">Full name</label>
+          <input id="signup-name" name="name" autocomplete="name" required maxlength="80">
+          <label for="signup-email">Email address</label>
+          <input id="signup-email" name="email" type="email" autocomplete="email" required maxlength="254">
+          <label for="signup-password">Password</label>
+          <input id="signup-password" name="password" type="password" autocomplete="new-password" required minlength="12" maxlength="1024" aria-describedby="password-help">
+          <p id="password-help" class="small muted">Use at least 12 characters. Never reuse a password from another site.</p>
+          <button type="submit">Create account</button>
+        </form>
+        <p class="small muted">Already registered? <button id="show-login" class="inline-button" type="button">Return to sign in</button></p>
+      </section>
     </section>
     <section id="app-panel" hidden>
       <div class="welcome-row">
