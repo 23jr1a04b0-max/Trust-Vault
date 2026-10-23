@@ -137,6 +137,10 @@ test('HTTP authorization: private isolation, Read versus Download, approval and 
   assert.equal(oversized.status,400,'files above configured size limit must be rejected');
   let listing = await (await request(viewer, '/api/documents')).json();
   assert.ok(!listing.documents.some(doc => doc.id === privateDoc.id), 'private document metadata must not be discoverable');
+  const adminListing=await (await request(admin,'/api/documents')).json();
+  assert.ok(!adminListing.documents.some(doc=>doc.id===privateDoc.id),'administrator role alone must not reveal private document metadata');
+  const nonAdminDisable=await request(viewer,'/api/users/'+admin.user.id,{method:'PATCH',body:JSON.stringify({disabled:true})});
+  assert.equal(nonAdminDisable.status,403,'non-administrators must not change account state');
 
   const invalidExpiry = await request(owner, `/api/documents/${privateDoc.id}/permissions`, {
     method:'POST', body:JSON.stringify({email:'viewer@trustvault.test',permission:'Read',expiresAt:new Date(Date.now()-1000).toISOString()})
