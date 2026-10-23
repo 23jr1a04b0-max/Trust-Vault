@@ -68,7 +68,7 @@ These changes do not close the deployment blockers above. No live domain/proxy v
 
 ## Latest verification update (2026-10-23)
 
-- Latest recorded commit under review: `a470a0a2029476439b928a6b79161c648d5dd333`.
-- [GitHub Actions run for this commit](https://github.com/23jr1a04b0-max/Trust-Vault/actions/runs/39948613643) must finish successfully before treating that exact head as validated. Earlier commit `e7111d9d3ff6f8ab77558829f7752ad08893d418` passed CI, including tests, mutation checks, backup script syntax, production container build, and health smoke test.
+- Latest recorded commit under review: `9daf7358b0e79af5d8786b0aec99c1b93124ad4c`.
+- [GitHub Actions run for this exact commit](https://github.com/23jr1a04b0-max/Trust-Vault/actions/runs/39949390312) completed successfully, including JavaScript syntax checks, automated tests, authorization mutation test, proxy configuration tests, bootstrap test, backup script syntax, production container build, and health smoke test.
 - Audit row/outbox writes are transactional, audit receiver requests cannot follow redirects, and streaming guards re-check session validity in addition to document/grant authorization.
-- The application code and CI cannot provision an external append-only audit receiver, real TLS domain, remote backup repository, or external alerting, and cannot replace an independent penetration test.
+- A one-time audited initial Administrator bootstrap command and regression test are now included. The application code and CI still cannot provision an external append-only audit receiver, real TLS domain, remote backup repository, or external alerting, and cannot replace an independent penetration test.
