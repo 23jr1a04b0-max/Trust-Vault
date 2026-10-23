@@ -165,11 +165,20 @@ function audit(actor, action, targetType, targetId, outcome, reason, requestId) 
   const event={id:randomUUID(),at:now(),actor_id:actor||null,action,target_type:targetType||null,target_id:targetId||null,outcome,reason,request_id:requestId,prev_hash:prev};
   const hashVersion=2;
   const hash=auditMac(JSON.stringify({...event,hash_version:hashVersion}));
-  run('INSERT INTO audit(id,at,actor_id,action,target_type,target_id,outcome,reason,request_id,prev_hash,hash,hash_version) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)',event.id,event.at,event.actor_id,event.action,event.target_type,event.target_id,event.outcome,event.reason,event.request_id,event.prev_hash,hash,hashVersion);
-  if(AUDIT_SINK_URL) {
-    const seq=q('SELECT seq FROM audit WHERE id=?',event.id).seq;
-    const payload={seq,event,hash,hash_version:hashVersion};
-    run('INSERT INTO audit_outbox(id,seq,payload,created_at) VALUES(?,?,?,?)',event.id,seq,JSON.stringify(payload),now());
+  // Keep the local audit event and its external-delivery outbox entry atomic.
+  // Otherwise an outbox write failure could leave an event that never gets anchored.
+  DB.exec('BEGIN IMMEDIATE');
+  try {
+    run('INSERT INTO audit(id,at,actor_id,action,target_type,target_id,outcome,reason,request_id,prev_hash,hash,hash_version) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)',event.id,event.at,event.actor_id,event.action,event.target_type,event.target_id,event.outcome,event.reason,event.request_id,event.prev_hash,hash,hashVersion);
+    if(AUDIT_SINK_URL) {
+      const seq=q('SELECT seq FROM audit WHERE id=?',event.id).seq;
+      const payload={seq,event,hash,hash_version:hashVersion};
+      run('INSERT INTO audit_outbox(id,seq,payload,created_at) VALUES(?,?,?,?)',event.id,seq,JSON.stringify(payload),now());
+    }
+    DB.exec('COMMIT');
+  } catch(error) {
+    try { DB.exec('ROLLBACK'); } catch {}
+    throw error;
   }
   persistAuditCheckpoint();
 }
