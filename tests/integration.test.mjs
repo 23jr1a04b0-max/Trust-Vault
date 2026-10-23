@@ -133,6 +133,16 @@ test('HTTP authorization: private isolation, Read versus Download, approval and 
   assert.match(await content.text(), /TrustVault test document/);
   let download = await request(viewer, `/api/documents/${privateDoc.id}/download`);
   assert.equal(download.status, 404, 'Read permission must not allow downloading');
+  const expiryDb = new DatabaseSync(join(temp,'data','trustvault.sqlite'));
+  expiryDb.prepare('UPDATE grants SET expires_at=? WHERE document_id=? AND user_id=?').run('2000-01-01T00:00:00.000Z',privateDoc.id,viewer.user.id);
+  expiryDb.close();
+  listing = await (await request(viewer,'/api/documents')).json();
+  assert.ok(!listing.documents.some(doc=>doc.id===privateDoc.id),'expired grants must not appear as active document access');
+  assert.equal((await request(viewer,`/api/documents/${privateDoc.id}/content`)).status,404,'expired grants must immediately deny content access');
+  share = await request(owner, `/api/documents/${privateDoc.id}/permissions`, {
+    method: 'POST', body: JSON.stringify({ email: 'viewer@trustvault.test', permission: 'Read' })
+  });
+  assert.equal(share.status,201,await share.text(),'owner should be able to restore access after expiry');
   share = await request(owner, `/api/documents/${privateDoc.id}/permissions`, {
     method: 'POST', body: JSON.stringify({ email: 'viewer@trustvault.test', permission: 'Edit' })
   });
