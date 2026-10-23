@@ -5,6 +5,7 @@ import { randomBytes, randomUUID, scrypt as scryptCb, timingSafeEqual, createHas
 import { promisify } from 'node:util';
 import { DatabaseSync } from 'node:sqlite';
 import { pipeline } from 'node:stream/promises';
+import { Transform } from 'node:stream';
 
 const scrypt = promisify(scryptCb);
 const ROOT = process.cwd();
@@ -280,7 +281,7 @@ async function route(req,res) {
         const id=docMatch[1], action=docMatch[2]||''; const d=q('SELECT * FROM documents WHERE id=? AND deleted_at IS NULL',id);
         if(action==='download' && method==='GET') {
           if(!hasDocAccess(user,d,'Download')) {audit(user.id,'document.download','document',null,'denied','not_authorised_or_not_found',requestId);return json(res,404,{error:'Document not found'});}
-          audit(user.id,'document.download','document',id,'success','authorised_download',requestId); res.writeHead(200,{'content-type':d.mime,'content-length':d.size,'content-disposition':`attachment; filename="download${extname(d.name).replace(/[^.a-zA-Z0-9]/g,'')}"`,'cache-control':'no-store','x-content-type-options':'nosniff'}); return pipeline(createReadStream(join(PRIVATE,d.storage_key)),res);
+          audit(user.id,'document.download','document',id,'success','authorised_download',requestId); res.writeHead(200,{'content-type':d.mime,'content-length':d.size,'content-disposition':`attachment; filename="download${extname(d.name).replace(/[^.a-zA-Z0-9]/g,'')}"`,'cache-control':'no-store','x-content-type-options':'nosniff'}); const streamAccessGuard=new Transform({transform(chunk,encoding,callback){const current=q('SELECT * FROM documents WHERE id=? AND deleted_at IS NULL',id);if(!hasDocAccess(user,current,'Download')){callback(Object.assign(new Error('Document access was revoked during download'),{code:'ERR_DOCUMENT_ACCESS_REVOKED'}));return;}callback(null,chunk);}}); return pipeline(createReadStream(join(PRIVATE,d.storage_key)),streamAccessGuard,res);
         }
         if(action==='content' && method==='GET') {
           if(!hasDocAccess(user,d,'Read')) {audit(user.id,'document.content.read','document',null,'denied','not_authorised_or_not_found',requestId);return json(res,404,{error:'Document not found'});}
