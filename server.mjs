@@ -13,8 +13,8 @@ import { generateTotpSecret, encryptTotpSecret, decryptTotpSecret, verifyTotp } 
 const scrypt = promisify(scryptCb);
 const ROOT = process.cwd();
 const PUBLIC = resolve(ROOT, 'public');
-const DATA = resolve(ROOT, 'data');
-const PRIVATE = resolve(ROOT, 'private-files');
+const DATA = resolve(process.env.DATA_DIR || join(ROOT, 'data'));
+const PRIVATE = resolve(process.env.PRIVATE_FILES_DIR || join(ROOT, 'private-files'));
 for (const p of [DATA, PRIVATE]) mkdirSync(p, { recursive: true, mode: 0o700 });
 const DB = new DatabaseSync(join(DATA, 'trustvault.sqlite'));
 DB.exec(readFileSync(join(ROOT, 'db', 'schema.sql'), 'utf8'));
