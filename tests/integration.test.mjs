@@ -182,6 +182,16 @@ test('HTTP authorization: private isolation, Read versus Download, approval and 
   wrongMimeForm.append('category','Tests');wrongMimeForm.append('visibility','Private');
   const wrongMime = await request(owner,'/api/documents',{method:'POST',body:wrongMimeForm});
   assert.equal(wrongMime.status,400,'declared MIME type must match the allowed extension');
+  const invalidUtf8Form=new FormData();
+  invalidUtf8Form.append('file',new Blob([new Uint8Array([0xff,0xfe,0x41])],{type:'text/plain'}),'invalid-utf8.txt');
+  invalidUtf8Form.append('category','Tests');invalidUtf8Form.append('visibility','Private');
+  const invalidUtf8=await request(owner,'/api/documents',{method:'POST',body:invalidUtf8Form});
+  assert.equal(invalidUtf8.status,400,'TXT uploads must contain valid UTF-8 text');
+  const incompletePdfForm=new FormData();
+  incompletePdfForm.append('file',new Blob(['%PDF-1.7\\nthis is not a complete PDF'],{type:'application/pdf'}),'incomplete.pdf');
+  incompletePdfForm.append('category','Tests');incompletePdfForm.append('visibility','Private');
+  const incompletePdf=await request(owner,'/api/documents',{method:'POST',body:incompletePdfForm});
+  assert.equal(incompletePdf.status,400,'PDF uploads without an end-of-file marker must be rejected');
   const oversizedForm = new FormData();
   oversizedForm.append('file',new Blob(['x'.repeat(2048)],{type:'text/plain'}),'large.txt');
   oversizedForm.append('category','Tests');oversizedForm.append('visibility','Private');
