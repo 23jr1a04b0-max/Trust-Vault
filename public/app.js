@@ -200,6 +200,8 @@ $('upload-form').addEventListener('submit', async event => {
   data.append('file', file);
   data.append('category', $('document-category').value.trim() || 'General');
   data.append('visibility', $('document-visibility').value);
+  try {
+    await api('/api/documents', { method: 'POST', body: data });
     event.currentTarget.reset();
     $('document-category').value = 'General';
     notice('Document uploaded successfully.', 'success');
