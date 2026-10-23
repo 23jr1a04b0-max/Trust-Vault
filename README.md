@@ -88,6 +88,7 @@ The audit HMAC key must be protected independently of the database. HMAC makes d
 - [API reference](docs/API.md)
 - [Architecture and schema](docs/ARCHITECTURE.md)
 - [Security operations](docs/SECURITY.md)
+- [Implementation and security review](SECURITY_REVIEW.md)
 - [Threat register](THREATS.md)
 - [Deployment checklist](docs/DEPLOYMENT.md)
 - [Five-minute demo script](docs/DEMO_SCRIPT.md)
