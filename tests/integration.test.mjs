@@ -217,6 +217,16 @@ test('HTTP authorization: private isolation, Read versus Download, approval and 
   const downloadApproval = await request(owner,`/api/access-requests/${thirdAccessRequest.id}`,{method:'PATCH',body:JSON.stringify({status:'Approved'})});
   assert.equal(downloadApproval.status,200,await downloadApproval.text());
   assert.equal((await request(viewer,`/api/documents/${publicDoc.id}/download`)).status,200,'Download approval should enable the download endpoint');
+  const sessionDb=new DatabaseSync(join(temp,'data','trustvault.sqlite'));
+  sessionDb.prepare('UPDATE sessions SET last_seen_at=? WHERE user_id=?').run(Date.now()-31*60*1000,viewer.user.id);
+  sessionDb.close();
+  assert.equal((await request(viewer,'/api/documents')).status,401,'idle sessions must expire after the configured inactivity window');
+  const viewerFresh=await login('viewer@trustvault.test');
+  const absoluteDb=new DatabaseSync(join(temp,'data','trustvault.sqlite'));
+  absoluteDb.prepare('UPDATE sessions SET expires_at=? WHERE user_id=?').run(Date.now()-1000,owner.user.id);
+  absoluteDb.close();
+  assert.equal((await request(owner,'/api/auth/me')).status,401,'absolute session expiry must be enforced even when a session was recently active');
+  const ownerFresh=await login('owner@trustvault.test');
   const deniedLogins=[];
   for(let i=0;i<8;i++){
     const response=await fetch(base+'/api/auth/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email:'bad-login@trustvault.test',password:'wrong-password'})});
@@ -231,10 +241,10 @@ test('HTTP authorization: private isolation, Read versus Download, approval and 
   assert.equal(selfDisable.status,400,'administrator must not disable its own account');
   const disable=await request(admin,`/api/users/${viewer.user.id}`,{method:'PATCH',body:JSON.stringify({disabled:true})});
   assert.equal(disable.status,200,await disable.text());
-  assert.equal((await request(viewer,'/api/documents')).status,401,'disabling an account must invalidate its existing session');
-  const logout=await request(owner,'/api/auth/logout',{method:'POST',body:'{}'});
+  assert.equal((await request(viewerFresh,'/api/documents')).status,401,'disabling an account must invalidate its existing session');
+  const logout=await request(ownerFresh,'/api/auth/logout',{method:'POST',body:'{}'});
   assert.equal(logout.status,204);
-  assert.equal((await request(owner,'/api/auth/me')).status,401,'logout must invalidate the session immediately');
+  assert.equal((await request(ownerFresh,'/api/auth/me')).status,401,'logout must invalidate the session immediately');
   const finalAudit=await request(admin,'/api/audit/verify',{method:'POST',body:'{}'});
   const finalAuditText=await finalAudit.text();
   assert.equal(finalAudit.status,200,finalAuditText);
