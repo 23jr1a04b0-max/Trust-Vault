@@ -50,9 +50,9 @@ test('production HTTP origin checks and Secure session cookie',async t=>{
   assert.equal((await fetch(base+'/api/health')).status,200,'health check remains available without Origin');
   const missing=await fetch(base+'/api/auth/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email:'viewer@trustvault.test',password,role:'Viewer'})});
   assert.equal(missing.status,403,'production must reject state-changing requests without Origin');
-  const wrong=await fetch(base+'/api/auth/login',{method:'POST',headers:{origin:'https://attacker.example.test','content-type':'application/json'},body:JSON.stringify({email:'viewer@trustvault.test',password})});
+  const wrong=await fetch(base+'/api/auth/login',{method:'POST',headers:{origin:'https://attacker.example.test','content-type':'application/json'},body:JSON.stringify({email:'viewer@trustvault.test',password,role:'Viewer'})});
   assert.equal(wrong.status,403,'production must reject untrusted Origin');
-  const login=await fetch(base+'/api/auth/login',{method:'POST',headers:{origin:trustedOrigin,'content-type':'application/json'},body:JSON.stringify({email:'viewer@trustvault.test',password})});
+  const login=await fetch(base+'/api/auth/login',{method:'POST',headers:{origin:trustedOrigin,'content-type':'application/json'},body:JSON.stringify({email:'viewer@trustvault.test',password,role:'Viewer'})});
   const loginText=await login.text();
   assert.equal(login.status,200,loginText);
   const cookie=login.headers.get('set-cookie');
