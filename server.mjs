@@ -156,6 +156,11 @@ function hasDocAccess(user, doc, capability='Read') {
 }
 function requireCsrf(req,user) { if(!user || !req.headers['x-csrf-token'] || !safeEqual(String(req.headers['x-csrf-token']),user.csrf)) throw Object.assign(new Error('CSRF validation failed'),{status:403}); }
 function docDto(d) { const owner=q('SELECT display_name FROM users WHERE id=?',d.owner_id); return {id:d.id,name:d.name,category:d.category,visibility:d.visibility||'Private',size:d.size,mime:d.mime,createdAt:d.created_at,ownerId:d.owner_id,ownerName:owner?.display_name||'Unknown owner'}; }
+function activeGrant(userId,documentId) {
+  const grant=q('SELECT permission,expires_at FROM grants WHERE document_id=? AND user_id=? AND revoked_at IS NULL',documentId,userId);
+  if(!grant || (grant.expires_at && (!Number.isFinite(Date.parse(grant.expires_at)) || Date.parse(grant.expires_at)<=Date.now()))) return null;
+  return grant;
+}
 async function route(req,res) {
   let auditActor=null;
   const requestId=randomUUID(); const url=new URL(req.url,'http://localhost'); const path=url.pathname; const method=req.method||'GET';
@@ -191,7 +196,7 @@ async function route(req,res) {
       if(path==='/api/documents' && method==='GET') {
         const docs=all(`SELECT DISTINCT d.* FROM documents d LEFT JOIN grants g ON g.document_id=d.id AND g.user_id=? AND g.revoked_at IS NULL WHERE d.deleted_at IS NULL AND (d.owner_id=? OR g.user_id=? OR d.visibility='Public') ORDER BY d.created_at DESC`,user.id,user.id,user.id).filter(d=>d.visibility==='Public'||hasDocAccess(user,d));
         audit(user.id,'document.list','collection',null,'success',`visible_count:${docs.length}`,requestId);
-        return json(res,200,{documents:docs.map(d=>({...docDto(d),accessPermission:d.owner_id===user.id?'Owner':(q('SELECT permission FROM grants WHERE document_id=? AND user_id=? AND revoked_at IS NULL',d.id,user.id)?.permission||(d.visibility==='Public'?'Public listing':'None'))}))});
+        return json(res,200,{documents:docs.map(d=>({...docDto(d),accessPermission:d.owner_id===user.id?'Owner':(activeGrant(user.id,d.id)?.permission||(d.visibility==='Public'?'Public listing':'None'))}))});
       }
       if(path==='/api/documents' && method==='POST') {
         if(!['DocumentOwner'].includes(user.role)) { audit(user.id,'document.upload','collection',null,'denied','role_not_allowed',requestId); return json(res,403,{error:'Only document owners can upload files'}); }
@@ -221,7 +226,7 @@ async function route(req,res) {
         }
         if(action==='permissions' && method==='GET') {
           if(!d || d.owner_id!==user.id) {audit(user.id,'permission.list','document',null,'denied','not_owner_or_not_found',requestId);return json(res,404,{error:'Document not found'});}
-          return json(res,200,{permissions:all('SELECT g.user_id,u.email,u.display_name,g.permission,g.created_at,g.revoked_at FROM grants g JOIN users u ON u.id=g.user_id WHERE g.document_id=?',id)});
+          return json(res,200,{permissions:all('SELECT g.user_id,u.email,u.display_name,g.permission,g.created_at,g.revoked_at,g.expires_at FROM grants g JOIN users u ON u.id=g.user_id WHERE g.document_id=?',id)});
         }
         if(action==='permissions' && method==='POST') {
           if(!d || d.owner_id!==user.id) {audit(user.id,'permission.grant','document',null,'denied','not_owner_or_not_found',requestId);return json(res,404,{error:'Document not found'});}
