@@ -79,3 +79,15 @@ CREATE TABLE IF NOT EXISTS access_requests (
   expires_at TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_access_requests_owner_status ON access_requests(document_id,status,created_at);
+
+
+CREATE TABLE IF NOT EXISTS notifications (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  type TEXT NOT NULL,
+  title TEXT NOT NULL,
+  message TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  read_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_notifications_user_unread ON notifications(user_id, read_at, created_at);
