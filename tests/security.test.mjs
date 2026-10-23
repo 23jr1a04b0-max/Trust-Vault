@@ -70,3 +70,13 @@ test('role-based in-app notifications have a bell badge and no notification pop-
   assert.match(app,/loadNotifications\(true\)/);
   assert.match(css,/\.topbar-user\{display:flex/);
 });
+
+test('user-controlled labels are rendered as text and upload storage names are generated', () => {
+  const app=readFileSync('public/app.js','utf8');
+  const server=readFileSync('server.mjs','utf8');
+  assert.match(app,/node\.textContent\s*=\s*text/,'UI text helper must not parse user content as HTML');
+  assert.match(server,/const key=randomBytes\(32\)\.toString\('hex'\)/,'uploaded content must use generated storage keys');
+  assert.match(server,/file\.filename\.includes\('\/'\)/,'path-bearing upload filenames must be rejected');
+  assert.match(server,/new TextDecoder\('utf-8',\{fatal:true\}\)/,'text uploads must reject invalid UTF-8');
+  assert.match(server,/includes\('\%\%EOF'\)/,'PDF uploads must contain a basic EOF marker');
+});
