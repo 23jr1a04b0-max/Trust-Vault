@@ -5,6 +5,7 @@ WORKDIR /app
 
 COPY --chown=node:node server.mjs clamav.mjs audit-sink.mjs ./
 COPY --chown=node:node db ./db
+COPY --chown=node:node scripts ./scripts
 COPY --chown=node:node public ./public
 
 RUN mkdir -p /app/data /app/private-files \
