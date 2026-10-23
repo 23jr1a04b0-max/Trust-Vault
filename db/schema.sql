@@ -75,7 +75,6 @@ CREATE TABLE IF NOT EXISTS access_requests (
   created_at TEXT NOT NULL,
   decided_at TEXT,
   decided_by TEXT REFERENCES users(id),
-  expires_at TEXT,
-  UNIQUE(document_id,requester_id,permission,status)
+  expires_at TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_access_requests_owner_status ON access_requests(document_id,status,created_at);
