@@ -22,7 +22,9 @@ const sha = s => createHash('sha256').update(s).digest('hex');
 const safeEqual = (a,b) => { const aa=Buffer.from(a), bb=Buffer.from(b); return aa.length===bb.length && timingSafeEqual(aa,bb); };
 const notificationDto = n => ({id:n.id,type:n.type,title:n.title,message:n.message,createdAt:n.created_at,readAt:n.read_at});
 function createNotification(userId,type,title,message) {
-  run('INSERT INTO notifications(id,user_id,type,title,message,created_at) VALUES(?,?,?,?,?,?)',randomUUID(),userId,type,title,message,now());
+  run('INSERT INTO notifications(id,user_id,type,title,message,created_at) VALUES(?,?,?,?,?,?)',randomUUID(),userId,type,title.slice(0,160),message.slice(0,1000),now());
+  // Bound persistent notification growth from repeated account or access events.
+  run('DELETE FROM notifications WHERE user_id=? AND id NOT IN (SELECT id FROM notifications WHERE user_id=? ORDER BY created_at DESC,id DESC LIMIT 500)',userId,userId);
 }
 function notifyAdministrators(type,title,message) {
   for(const admin of all("SELECT id FROM users WHERE role='Administrator' AND disabled=0")) createNotification(admin.id,type,title,message);
@@ -209,6 +211,7 @@ async function route(req,res) {
         if(!attempts||current-attempts.startedAt>=LOGIN_WINDOW_MS) attempts={startedAt:current,count:0};
         if(attempts.count>=5) { signupAttempts.set(key,attempts); audit(null,'auth.signup.rate_limited','client',null,'denied','signup_rate_limit',requestId); return json(res,429,{error:'Too many sign-up attempts. Try again later.'},{'retry-after':String(Math.max(1,Math.ceil((attempts.startedAt+LOGIN_WINDOW_MS-current)/1000)))}); }
         attempts.count++; signupAttempts.set(key,attempts);
+        if(signupAttempts.size>5000) for(const [attemptKey,value] of signupAttempts) if(current-value.startedAt>=LOGIN_WINDOW_MS) signupAttempts.delete(attemptKey);
         if(!email||email.length>254||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||!name||name.length>80||password.length<12||password.length>1024) return json(res,400,{error:'Enter a valid name and email, and a password between 12 and 1024 characters.'});
         if(!['DocumentOwner','Viewer'].includes(role)) return json(res,400,{error:'Choose Document Owner or Viewer. Administrator accounts are created by an existing trusted administrator.'});
         if(q('SELECT id FROM users WHERE email=?',email)) { audit(null,'auth.signup','user',null,'denied','email_already_registered',requestId); return json(res,409,{error:'An account with this email already exists. Sign in instead.'}); }
@@ -318,6 +321,7 @@ async function route(req,res) {
       if(requestMatch && method==='POST') {
         const d=q('SELECT * FROM documents WHERE id=? AND deleted_at IS NULL',requestMatch[1]);
         const input=await readJson(req), permission=input.permission;
+        if(user.role!=='Viewer') { audit(user.id,'access_request.create','document',null,'denied','viewer_role_required',requestId); return json(res,403,{error:'Only Viewer accounts can request document access.'}); }
         if(!d || d.visibility!=='Public' || d.owner_id===user.id) { audit(user.id,'access_request.create','document',null,'denied','not_requestable_or_self_request',requestId); return json(res,404,{error:'Public document not found'}); }
         if(!['Read','Download'].includes(permission)) return json(res,400,{error:'Permission must be Read or Download.'});
         const existing=q("SELECT id FROM access_requests WHERE document_id=? AND requester_id=? AND permission=? AND status='Pending'",d.id,user.id,permission);
@@ -382,7 +386,7 @@ async function route(req,res) {
     let full=resolve(PUBLIC,file); if(!full.startsWith(PUBLIC+pathSep())) return json(res,400,{error:'Invalid path'});
     if(!existsSync(full)) full=resolve(PUBLIC,'404.html');
     const ext=extname(full); const types={'.html':'text/html; charset=utf-8','.css':'text/css; charset=utf-8','.js':'text/javascript; charset=utf-8','.svg':'image/svg+xml'};
-    res.writeHead(full.endsWith('404.html')?404:200,{'content-type':types[ext]||'application/octet-stream','cache-control':ext==='.html'?'no-cache':'public, max-age=86400','x-content-type-options':'nosniff'});
+    res.writeHead(full.endsWith('404.html')?404:200,{'content-type':types[ext]||'application/octet-stream','cache-control':ext==='.html'?'no-cache':'public, max-age=86400','x-content-type-options':'nosniff','referrer-policy':'no-referrer','x-frame-options':'DENY','content-security-policy':"default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'",'permissions-policy':'camera=(), microphone=(), geolocation=()'});
     if(method==='HEAD') return res.end(); return createReadStream(full).pipe(res);
   } catch(err) { const status=err.status||500; if(status>=500) console.error('request_failed',requestId,err.message); else if(path.startsWith('/api/')) { try { audit(auditActor,'request.rejected','route',path,'denied',status===403?'csrf_or_origin_validation':status===413?'request_too_large':'client_request_rejected',requestId); } catch(auditError) { console.error('audit_write_failed',requestId,auditError.message); } } if(!res.headersSent) json(res,status,{error:status>=500?'Unexpected server error':err.message}); else res.destroy(); }
 }
