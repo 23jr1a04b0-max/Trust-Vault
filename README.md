@@ -10,7 +10,7 @@ TrustVault is a security-first document workspace. Document owners upload files 
 |---|---|---|
 | Administrator | Review recent audit metadata and integrity status; list accounts; disable or re-enable other accounts | Does not automatically read, download, edit, delete, or grant access to documents |
 | Document owner | Upload, search, read, download, edit details, soft-delete, grant and revoke permissions for owned documents | Cannot administer accounts or see documents they do not own or have been granted |
-| Viewer | Search, read, and download documents with an active document-specific Read or Edit grant; Edit grants also permit changing the document name and category | Cannot upload, delete, grant access, inspect owner-only document history, or access ungranted documents |
+| Viewer | View content with an active Read, Download, or Edit grant; Download and Edit grants permit downloading; Edit grants also permit changing the document name and category | Cannot upload, delete, grant access, inspect owner-only document history, or access ungranted documents |
 
 Access is per document, not inherited from folders. The server checks the current grant state on each protected request. Revocation cannot recall a copy already downloaded or a transfer already in progress.
 
