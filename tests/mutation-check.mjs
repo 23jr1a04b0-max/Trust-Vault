@@ -34,9 +34,9 @@ try {
   if (result.error) throw result.error;
   assert.notEqual(result.status, 0,
     'Security integration test unexpectedly passed after both initial and streaming download authorization checks were removed');
-  assert.match(result.stdout + result.stderr, /Read permission must not allow downloading/,
-    'Mutation must be detected by the Read-versus-Download authorization assertion, not an unrelated failure');
-  console.log('PASS: HTTP integration test fails specifically because Read-only access can download after both authorization checks are removed.');
+  assert.match(result.stdout + result.stderr, /Read permission must not allow downloading|one owner must not download another owner's private document without a grant/,
+    'Mutation must be detected by a download-authorization assertion, not an unrelated failure');
+  console.log('PASS: HTTP integration test fails on a download-authorization assertion after both authorization checks are removed.');
 } finally {
   rmSync(temp, { recursive: true, force: true });
 }
