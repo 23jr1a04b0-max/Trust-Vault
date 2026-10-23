@@ -47,7 +47,7 @@ test('production administrators must enroll TOTP and use non-replayed codes',asy
   response=await api('/api/users',{});
   assert.equal(response.status,403,'production admin tools must be blocked before MFA enrollment');
   response=await api('/api/admin/mfa/enroll',{});
-  let responseText=await response.text();
+  responseText=await response.text();
   assert.equal(response.status,200,responseText);
   const enrollment=JSON.parse(responseText);
   const currentCode=generateTotpCode(enrollment.secret);
