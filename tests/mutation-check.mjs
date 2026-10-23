@@ -19,8 +19,11 @@ try {
   const serverPath = join(temp, 'server.mjs');
   const source = readFileSync(serverPath, 'utf8');
   const guard = "if(!hasDocAccess(user,d,'Download'))";
-  assert.ok(source.includes(guard), 'Expected download authorization guard was not found');
-  writeFileSync(serverPath, source.replace(guard, 'if(false)'), 'utf8');
+  const streamGuard = "if(!hasDocAccess(user,current,'Download'))";
+  assert.ok(source.includes(guard), 'Expected initial download authorization guard was not found');
+  assert.ok(source.includes(streamGuard), 'Expected streaming download authorization guard was not found');
+  const mutated = source.replace(guard, 'if(false)').replace(streamGuard, 'if(false)');
+  writeFileSync(serverPath, mutated, 'utf8');
 
   const result = spawnSync(process.execPath, ['--test', 'tests/integration.test.mjs'], {
     cwd: temp,
@@ -30,10 +33,10 @@ try {
   });
   if (result.error) throw result.error;
   assert.notEqual(result.status, 0,
-    'Security integration test unexpectedly passed after the download authorization check was removed');
+    'Security integration test unexpectedly passed after both initial and streaming download authorization checks were removed');
   assert.match(result.stdout + result.stderr, /Read permission must not allow downloading/,
     'Mutation must be detected by the Read-versus-Download authorization assertion, not an unrelated failure');
-  console.log('PASS: HTTP integration test fails specifically because Read-only access can download after the authorization check is removed.');
+  console.log('PASS: HTTP integration test fails specifically because Read-only access can download after both authorization checks are removed.');
 } finally {
   rmSync(temp, { recursive: true, force: true });
 }
