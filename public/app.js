@@ -409,4 +409,4 @@ $('year').textContent = String(new Date().getFullYear());
   } catch { showSignedOut(); }
 })();
 
-setInterval(() => { if(activeUser) loadNotifications(false); }, 30000);
+setInterval(() => { if(activeUser) loadNotifications(!$('notifications-panel').hidden); }, 30000);
