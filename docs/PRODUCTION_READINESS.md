@@ -45,7 +45,7 @@ The local outbox and signed webhook are not an immutable audit store. Without a 
 - [ ] Install/configure `scripts/backup.sh` and `deploy/systemd/trustvault-backup.timer`; set up an encrypted off-host Restic repository, root-only password file, and separate HMAC/sink secret recovery. Run it successfully on the target host.
 - [ ] Complete an isolated restore drill and verify audit chain, external audit receiver continuity, document bytes, and access grants.
 - [ ] Configure central logs, uptime/health checks, disk-capacity monitoring, alert routing, retention, and incident response.
-- [ ] Create the initial Administrator with `scripts/create-admin.mjs`, confirm the bootstrap audit event is delivered, then implement and test MFA for administrators and a secure account-recovery workflow.
+- [ ] Create the initial Administrator with `scripts/create-admin.mjs`, confirm the bootstrap audit event is delivered, test TOTP MFA with a real authenticator in staging, securely back up `MFA_ENCRYPTION_KEY`, and implement an audited emergency MFA reset plus secure account-recovery workflow.
 - [ ] Complete an independent security assessment; remediate critical/high findings.
 - [ ] Record exact commit/image digest, date, operator, commands, results, and evidence for every verification.
 
@@ -59,7 +59,7 @@ The local outbox and signed webhook are not an immutable audit store. Without a 
 | ClamAV production service | Compose integration implemented; full Compose runtime not verified here | Run staging verification |
 | Automated off-host backup and restore | Script and systemd timer template implemented; remote repository, timer installation, and restore drill not verified | Operator evidence required |
 | Initial Administrator bootstrap | Script and automated test implemented; run once on the actual host | Operator evidence required |
-| Administrator TOTP MFA | Implemented and CI-tested; real authenticator staging verification and recovery workflow outstanding | Operator evidence required |
+| Administrator TOTP MFA | Implemented and CI-tested; real authenticator staging verification, key recovery plan, and emergency reset workflow outstanding | Operator evidence required |
 | Monitoring, secure account recovery, independent security review | Outstanding | Implementation/third-party work required |
 
 **Release rule:** Do not deploy confidential or regulated documents until the required items have dated evidence and a responsible operator approves the release.
