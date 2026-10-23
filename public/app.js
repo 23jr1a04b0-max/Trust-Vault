@@ -116,14 +116,14 @@ function showAuthenticated(user, token) {
   $('notifications-panel').hidden = true;
   $('notifications-toggle').setAttribute('aria-expanded','false');
   setNotificationCount(0);
-  if (user.role !== 'Administrator' || user.mfaEnabled) loadNotifications(false);
+  if (user.role !== 'Administrator' || !user.mfaRequired || user.mfaEnabled) loadNotifications(false);
   $('welcome-title').textContent = `Welcome, ${user.name}`;
   $('welcome-subtitle').textContent = user.email;
   $('upload-panel').hidden = user.role !== 'DocumentOwner';
   $('requests-panel').hidden = user.role !== 'DocumentOwner';
-  $('admin-panel').hidden = user.role !== 'Administrator';\n  $('admin-mfa-panel').hidden = user.role !== 'Administrator' || Boolean(user.mfaEnabled);\n  $('admin-tools').hidden = user.role === 'Administrator' && !user.mfaEnabled;
-  if (user.role !== 'Administrator' || user.mfaEnabled) loadDocuments();
-  else $('document-list').replaceChildren(el('p','muted','Complete administrator MFA setup to access administrator tools.'));
+  $('admin-panel').hidden = user.role !== 'Administrator';\n  $('admin-mfa-panel').hidden = user.role !== 'Administrator' || !user.mfaRequired || Boolean(user.mfaEnabled);\n  $('admin-tools').hidden = user.role === 'Administrator' && user.mfaRequired && !user.mfaEnabled;
+  if (user.role !== 'Administrator' || !user.mfaRequired || user.mfaEnabled) loadDocuments();
+  else if (user.role === 'Administrator' && user.mfaRequired && !user.mfaEnabled) $('document-list').replaceChildren(el('p','muted','Complete administrator MFA setup to access administrator tools.'));
   if (user.role === 'DocumentOwner') loadAccessRequests();
 }
 async function loadAccessRequests() {
