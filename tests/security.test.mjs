@@ -35,3 +35,16 @@ test('initial dashboard offers role selection and owner/viewer sign-up only', ()
   assert.match(js,/\['DocumentOwner','Viewer'\]\.includes\(selectedRole\)/);
   assert.match(js,/role: selectedRole/);
 });
+
+test('owner registration requires administrator approval while viewer registration is immediate', () => {
+  const server = readFileSync('server.mjs','utf8');
+  const schema = readFileSync('db/schema.sql','utf8');
+  const ui = readFileSync('public/app.js','utf8');
+  assert.match(schema,/approval_status TEXT NOT NULL DEFAULT 'Approved'/);
+  assert.match(server,/role==='DocumentOwner'\?'Pending':'Approved'/);
+  assert.match(server,/owner account is awaiting administrator approval/i);
+  assert.match(server,/input\.approvalStatus/);
+  assert.match(ui,/Approve owner request/);
+  assert.match(ui,/Reject owner request/);
+  assert.match(ui,/data\.approvalStatus === 'Pending'/);
+});
