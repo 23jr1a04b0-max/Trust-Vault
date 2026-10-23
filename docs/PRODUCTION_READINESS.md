@@ -6,11 +6,11 @@
 
 - Server-side document authorization, grant expiry/revocation checks, session expiry, CSRF and production Origin checks.
 - HMAC-chained audit events, local checkpoint, checkpoint initialization marker, tamper/truncation regression tests.
-- Optional signed HTTPS audit delivery with a persistent outbox, retry/backoff, idempotency key and administrator status endpoint. Production startup now requires an HTTPS audit receiver configuration.
+- Signed HTTPS audit delivery with a persistent outbox, retry/backoff, idempotency key and administrator status endpoint. Production startup now requires an HTTPS audit receiver configuration.
 - Production upload scanning through an internal ClamAV service. Malware findings and scanner failures fail closed before storage.
 - Nginx reverse-proxy sample with TLS settings, request limits, trusted forwarding headers, and per-client login/sign-up rate limits.
 - CI test suite and production-container smoke test; Dependabot update proposals.
-- Backup/restore procedure in [BACKUP_RESTORE.md](BACKUP_RESTORE.md).
+- Backup/restore procedure in [BACKUP_RESTORE.md](BACKUP_RESTORE.md), plus a Restic backup script and daily systemd timer template. The timer still has to be installed and configured on the host.
 
 ## Required evidence before real confidential files
 
@@ -41,7 +41,7 @@ The local outbox and signed webhook are not an immutable audit store. Without a 
 
 ### Backups, monitoring, identity and review
 
-- [ ] Automate encrypted off-host backups for database/checkpoint and private files; store HMAC and sink credentials separately.
+- [ ] Install/configure `scripts/backup.sh` and `deploy/systemd/trustvault-backup.timer`; set up an encrypted off-host Restic repository, root-only password file, and separate HMAC/sink secret recovery. Run it successfully on the target host.
 - [ ] Complete an isolated restore drill and verify audit chain, external audit receiver continuity, document bytes, and access grants.
 - [ ] Configure central logs, uptime/health checks, disk-capacity monitoring, alert routing, retention, and incident response.
 - [ ] Implement and test MFA for administrators and a secure account-recovery workflow.
@@ -56,7 +56,7 @@ The local outbox and signed webhook are not an immutable audit store. Without a 
 | Actual TLS hostname and reverse proxy | Not verified; no production hostname available | Operator evidence required |
 | Independent append-only audit receiver | Adapter implemented; receiver not provisioned or tested | External service required |
 | ClamAV production service | Compose integration implemented; full Compose runtime not verified here | Run staging verification |
-| Automated off-host backup and restore | Procedure documented; execution not verified | Operator evidence required |
+| Automated off-host backup and restore | Script and systemd timer template implemented; remote repository, timer installation, and restore drill not verified | Operator evidence required |
 | MFA, monitoring, independent security review | Outstanding | Implementation/third-party work required |
 
 **Release rule:** Do not deploy confidential or regulated documents until the required items have dated evidence and a responsible operator approves the release.
