@@ -88,9 +88,10 @@ if (process.env.NODE_ENV === 'production') {
   if (auditKey.length < 32) throw new Error('Local audit HMAC key is invalid.');
 }
 const auditMac = value => createHmac('sha256', auditKey).update(value).digest('hex');
+const DEMO_MODE=process.env.TRUSTVAULT_DEMO_MODE==='true';
 const AUDIT_SINK_TOKEN=process.env.AUDIT_SINK_TOKEN||'';
 const AUDIT_SINK_URL=validateAuditSinkConfig(process.env.AUDIT_SINK_URL||'',AUDIT_SINK_TOKEN);
-if(process.env.NODE_ENV==='production'&&!AUDIT_SINK_URL) throw new Error('Production requires AUDIT_SINK_URL and AUDIT_SINK_TOKEN for independent audit anchoring.');
+if(process.env.NODE_ENV==='production'&&!AUDIT_SINK_URL&&!DEMO_MODE) throw new Error('Production requires AUDIT_SINK_URL and AUDIT_SINK_TOKEN for independent audit anchoring. Set TRUSTVAULT_DEMO_MODE=true only for a limited, non-production demo without external audit anchoring.');
 const MFA_ENCRYPTION_KEY=process.env.MFA_ENCRYPTION_KEY||'';
 if(process.env.NODE_ENV==='production'&&!/^[a-fA-F0-9]{64}$/.test(MFA_ENCRYPTION_KEY)) throw new Error('Production requires MFA_ENCRYPTION_KEY as 64 hexadecimal characters (32 bytes).');
 const AUDIT_CHECKPOINT = join(DATA, 'audit-checkpoint.json');
@@ -288,7 +289,7 @@ async function route(req,res) {
     if(path.startsWith('/api/')) {
       if(method!=='GET' && method!=='HEAD' && !productionOriginAllowed(req)) { audit(null,'request.origin_denied','route',path,'denied','origin_not_allowed',requestId); return json(res,403,{error:'Request origin is not allowed.'}); }
       const user=currentUser(req); auditActor=user?.id||null;
-      if(path==='/api/health' && method==='GET') return json(res,200,{ok:true});
+      if(path==='/api/health' && method==='GET') return json(res,200,{ok:true,demoMode:DEMO_MODE,independentAuditAnchoring:Boolean(AUDIT_SINK_URL),malwareScanningRequired:process.env.NODE_ENV==='production'});
       if(path==='/api/auth/signup' && method==='POST') {
         const d=await readJson(req);
         const email=String(d.email||'').trim().toLowerCase();
