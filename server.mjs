@@ -183,12 +183,18 @@ async function route(req,res) {
         catch(e){ if(existsSync(join(PRIVATE,key))) unlinkSync(join(PRIVATE,key)); throw e; }
         return json(res,201,{document:docDto(q('SELECT * FROM documents WHERE id=?',id))});
       }
-      const docMatch=path.match(/^\/api\/documents\/([0-9a-f-]+)(?:\/(download|permissions|audit))?$/i);
+      const docMatch=path.match(/^\/api\/documents\/([0-9a-f-]+)(?:\/(download|content|permissions|audit))?$/i);
       if(docMatch) {
         const id=docMatch[1], action=docMatch[2]||''; const d=q('SELECT * FROM documents WHERE id=? AND deleted_at IS NULL',id);
         if(action==='download' && method==='GET') {
           if(!hasDocAccess(user,d,'Download')) {audit(user.id,'document.download','document',null,'denied','not_authorised_or_not_found',requestId);return json(res,404,{error:'Document not found'});}
           audit(user.id,'document.download','document',id,'success','authorised_download',requestId); res.writeHead(200,{'content-type':d.mime,'content-length':d.size,'content-disposition':`attachment; filename="download${extname(d.name).replace(/[^.a-zA-Z0-9]/g,'')}"`,'cache-control':'no-store','x-content-type-options':'nosniff'}); return pipeline(createReadStream(join(PRIVATE,d.storage_key)),res);
+        }
+        if(action==='content' && method==='GET') {
+          if(!hasDocAccess(user,d,'Read')) {audit(user.id,'document.content.read','document',null,'denied','not_authorised_or_not_found',requestId);return json(res,404,{error:'Document not found'});}
+          audit(user.id,'document.content.read','document',id,'success','authorised_inline_view',requestId);
+          res.writeHead(200,{'content-type':d.mime,'content-length':d.size,'content-disposition':`inline; filename="view${extname(d.name).replace(/[^.a-zA-Z0-9]/g,'')}"`,'cache-control':'no-store','x-content-type-options':'nosniff','content-security-policy':"default-src 'none'; sandbox"});
+          return pipeline(createReadStream(join(PRIVATE,d.storage_key)),res);
         }
         if(action==='permissions' && method==='GET') {
           if(!d || d.owner_id!==user.id) {audit(user.id,'permission.list','document',null,'denied','not_owner_or_not_found',requestId);return json(res,404,{error:'Document not found'});}
