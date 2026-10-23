@@ -35,6 +35,26 @@ DB.exec(`CREATE TABLE IF NOT EXISTS access_requests (
   expires_at TEXT
 )`);
 DB.exec('CREATE INDEX IF NOT EXISTS idx_access_requests_owner_status ON access_requests(document_id,status,created_at)');
+const accessRequestSql=q("SELECT sql FROM sqlite_master WHERE type='table' AND name='access_requests'")?.sql||'';
+if(/UNIQUE\s*\(\s*document_id\s*,\s*requester_id\s*,\s*permission\s*,\s*status\s*\)/i.test(accessRequestSql)) {
+  DB.exec(`BEGIN;
+    CREATE TABLE access_requests_migration (
+      id TEXT PRIMARY KEY,
+      document_id TEXT NOT NULL REFERENCES documents(id),
+      requester_id TEXT NOT NULL REFERENCES users(id),
+      permission TEXT NOT NULL CHECK(permission IN ('Read','Download')),
+      status TEXT NOT NULL DEFAULT 'Pending' CHECK(status IN ('Pending','Approved','Rejected','Cancelled')),
+      created_at TEXT NOT NULL,
+      decided_at TEXT,
+      decided_by TEXT REFERENCES users(id),
+      expires_at TEXT
+    );
+    INSERT INTO access_requests_migration SELECT id,document_id,requester_id,permission,status,created_at,decided_at,decided_by,expires_at FROM access_requests;
+    DROP TABLE access_requests;
+    ALTER TABLE access_requests_migration RENAME TO access_requests;
+    CREATE INDEX idx_access_requests_owner_status ON access_requests(document_id,status,created_at);
+    COMMIT;`);
+}
 let auditKey;
 if (process.env.NODE_ENV === 'production') {
   if (!process.env.AUDIT_HMAC_KEY || Buffer.byteLength(process.env.AUDIT_HMAC_KEY) < 32) throw new Error('Production requires AUDIT_HMAC_KEY with at least 32 bytes.');
