@@ -4,6 +4,10 @@ TrustVault is a security-first document workspace. Document owners upload files,
 
 **Status: review build, not production-ready.** The working implementation uses Node.js, the built-in HTTP server, the built-in SQLite module, and plain JavaScript. Node's built-in SQLite API is experimental in the tested runtime. The repository still needs a verified public deployment, a production database and migration strategy, independent audit anchoring, operational hardening, and an external security review.
 
+## Sign-in and account registration
+
+The initial screen asks users to choose Document Owner, Viewer, or Administrator before opening the corresponding sign-in form. Public self-registration is available only for Document Owner and Viewer accounts, requires a name, email, and password of at least 12 characters, and rejects duplicate email addresses. Public registration cannot create administrator accounts. The server validates the selected sign-in role against the role stored on the account; the selection is only a navigation and account-type hint, never a permission grant. Email ownership verification and password reset are not implemented yet, so this build should not be exposed as a public production service.
+
 ## Roles and permission model
 
 | Role | Allowed actions | Explicitly not allowed |
