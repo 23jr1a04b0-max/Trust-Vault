@@ -48,3 +48,25 @@ test('owner registration requires administrator approval while viewer registrati
   assert.match(ui,/Reject owner request/);
   assert.match(ui,/data\.approvalStatus === 'Pending'/);
 });
+
+test('role-based in-app notifications have a bell badge and no notification pop-up', () => {
+  const server=readFileSync('server.mjs','utf8');
+  const schema=readFileSync('db/schema.sql','utf8');
+  const html=readFileSync('public/index.html','utf8');
+  const app=readFileSync('public/app.js','utf8');
+  const css=readFileSync('public/app.css','utf8');
+  assert.match(schema,/CREATE TABLE IF NOT EXISTS notifications/);
+  assert.match(server,/WHERE user_id=\? ORDER BY created_at DESC LIMIT 100/);
+  assert.match(server,/UPDATE notifications SET read_at=\? WHERE user_id=\? AND read_at IS NULL/);
+  assert.match(server,/createNotification\(d\.owner_id,'document-access-request'/);
+  assert.match(server,/createNotification\(request\.requester_id,'document-access-decision'/);
+  assert.match(server,/createNotification\(targetId,'owner-account-status'/);
+  assert.match(server,/notifyAdministrators\('owner-registration'/);
+  assert.match(html,/id="notifications-toggle"/);
+  assert.match(html,/id="notification-count"/);
+  assert.match(html,/id="notifications-panel"/);
+  assert.match(html,/id="topbar-user"/);
+  assert.match(app,/setNotificationCount\(0\)/);
+  assert.match(app,/loadNotifications\(true\)/);
+  assert.match(css,/\.topbar-user\{display:flex/);
+});
