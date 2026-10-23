@@ -35,7 +35,7 @@ Passing these checks does not establish that every route is secure, that the app
 - Login rate limiting is process-local; the repository includes a single-Nginx-instance rate-limit sample. Multi-instance or multi-edge hosting needs a shared limiter.
 - Audit events and the persistent external-delivery outbox are now inserted atomically. A signed HTTPS sink client uses redirect refusal and retry/backoff. Audit HMAC does not protect against compromise of the application host/key; independently administered immutable receiver storage and its alerts must still be provisioned and tested.
 - Production Origin checks have been tested in the application process, but behavior behind the actual TLS reverse proxy and deployed domain remains unverified.
-- The Restic backup script and systemd timer template exist, but remote repository setup and restore drills remain outstanding. Monitoring/alerting, retention enforcement, password recovery, administrator MFA, and an independent security review remain outstanding.
+- The Restic backup script and systemd timer template exist, but remote repository setup and restore drills remain outstanding. Administrator TOTP MFA is now implemented with encrypted secret storage, production enrollment enforcement, password reauthentication, and replay rejection; it still needs staging verification. Secure account recovery, monitoring/alerting, retention enforcement, and an independent security review remain outstanding.
 - The current automated suite is focused, not exhaustive; broad route authorization, malformed image/PDF parser cases, audit truncation, and concurrent-stream revocation need more runtime coverage.
 
 ## Decision
@@ -68,7 +68,7 @@ These changes do not close the deployment blockers above. No live domain/proxy v
 
 ## Latest verification update (2026-10-23)
 
-- Latest recorded commit under review: `f1e9b9d89a110243812f27a6889fde1e6d31c43d`.
-- [GitHub Actions run for this exact commit](https://github.com/23jr1a04b0-max/Trust-Vault/actions/runs/39949559298) completed successfully, including JavaScript syntax checks, automated tests, authorization mutation test, proxy configuration tests, bootstrap test, backup script syntax, production container build, and health smoke test.
+- Latest recorded commit under review: `2c4e4f7a2b69df3f3f1a00586a37600546368825`.
+- [GitHub Actions run for this exact commit](https://github.com/23jr1a04b0-max/Trust-Vault/actions/runs/39951811278) completed successfully, including JavaScript syntax checks, automated tests, TOTP enrollment/login/replay tests, authorization mutation test, proxy configuration tests, bootstrap test, backup script syntax, production container build, and health smoke test.
 - Audit row/outbox writes are transactional, audit receiver requests cannot follow redirects, and streaming guards re-check session validity in addition to document/grant authorization.
-- A one-time audited initial Administrator bootstrap command and regression test are now included. The application code and CI still cannot provision an external append-only audit receiver, real TLS domain, remote backup repository, or external alerting, and cannot replace an independent penetration test.
+- A one-time audited initial Administrator bootstrap command and regression test are included. Production administrator access now requires TOTP enrollment and a valid non-replayed code after enrollment; TOTP secrets are encrypted with a separate `MFA_ENCRYPTION_KEY` and setup requires password reauthentication. The application code and CI still cannot provision an external append-only audit receiver, real TLS domain, remote backup repository, or external alerting, and cannot replace an independent penetration test. Secure password recovery and an MFA recovery procedure remain outstanding.
