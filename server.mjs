@@ -79,6 +79,9 @@ const IDLE_SESSION_MS = 30 * 60 * 1000;
 const ABSOLUTE_SESSION_MS = 8 * 60 * 60 * 1000;
 let requestCounter = 0;
 const MAX_UPLOAD = Number(process.env.MAX_UPLOAD_BYTES || 10*1024*1024);
+if (!Number.isSafeInteger(MAX_UPLOAD) || MAX_UPLOAD < 1 || MAX_UPLOAD > 100*1024*1024) {
+  throw new Error('MAX_UPLOAD_BYTES must be an integer between 1 byte and 100 MiB.');
+}
 const allowed = new Map([['.pdf','application/pdf'],['.txt','text/plain'],['.png','image/png'],['.jpg','image/jpeg'],['.jpeg','image/jpeg']]);
 
 async function hashPassword(password, salt=randomBytes(16).toString('hex')) { return { salt, hash:(await scrypt(password,salt,64)).toString('hex') }; }
@@ -307,7 +310,50 @@ async function route(req,res) {
 }
 function pathSep(){return process.platform==='win32'?'\\':'/';}
 function validSignature(ext,b){ if(ext==='.txt') return !b.includes(0); if(ext==='.pdf') return b.subarray(0,5).toString()==='%PDF-'; if(ext==='.png') return b.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10])); if(ext==='.jpg'||ext==='.jpeg') return b[0]===0xff&&b[1]===0xd8&&b[b.length-2]===0xff&&b[b.length-1]===0xd9; return false; }
-function parseMultipart(buffer,boundary){ const fields={}; let file=null; const marker=Buffer.from('--'+boundary); for(const part of buffer.toString('latin1').split('--'+boundary).slice(1,-1)){ const cleaned=part.replace(/^\r\n|\r\n$/g,''); const idx=cleaned.indexOf('\r\n\r\n'); if(idx<0) continue; const headers=cleaned.slice(0,idx); const content=Buffer.from(cleaned.slice(idx+4).replace(/\r\n$/,''),'latin1'); const disposition=headers.match(/content-disposition:\s*form-data;\s*name="([^"]+)"(?:;\s*filename="([^"]*)")?/i); if(!disposition) continue; if(disposition[2]!==undefined) { const type=headers.match(/(?:^|\r\n)content-type:\s*([^\r\n]+)/i)?.[1]?.trim().toLowerCase() || ''; file={filename:disposition[2],contentType:type,data:content}; } else fields[disposition[1]]=content.toString('utf8').slice(0,200); } return {fields,file}; }
+function parseMultipart(buffer,boundary){
+  if (!/^[0-9A-Za-z'()+_,.\/:=?-]{1,200}$/.test(boundary)) throw Object.assign(new Error('Invalid upload boundary'),{status:400});
+  const delimiter=Buffer.from('--'+boundary);
+  const separator=Buffer.from('\r\n\r\n');
+  const fields=Object.create(null);
+  let file=null, cursor=0, parts=0;
+  const first=buffer.indexOf(delimiter);
+  if(first<0) throw Object.assign(new Error('Malformed multipart body'),{status:400});
+  cursor=first+delimiter.length;
+  if(buffer.subarray(cursor,cursor+2).equals(Buffer.from('--'))) return {fields,file};
+  if(!buffer.subarray(cursor,cursor+2).equals(Buffer.from('\r\n'))) throw Object.assign(new Error('Malformed multipart delimiter'),{status:400});
+  cursor+=2;
+  while(cursor<buffer.length){
+    if(++parts>20) throw Object.assign(new Error('Too many upload fields'),{status:400});
+    const headerEnd=buffer.indexOf(separator,cursor);
+    if(headerEnd<0||headerEnd-cursor>8192) throw Object.assign(new Error('Malformed multipart headers'),{status:400});
+    const headerText=buffer.subarray(cursor,headerEnd).toString('latin1');
+    if(/\r(?!\n)|(?<!\r)\n/.test(headerText)) throw Object.assign(new Error('Malformed multipart headers'),{status:400});
+    const disposition=headerText.match(/^content-disposition:\s*form-data;\s*name="([^"\r\n]{1,100})"(?:;\s*filename="([^"\r\n]{0,255})")?\s*$/im);
+    if(!disposition) throw Object.assign(new Error('Malformed multipart disposition'),{status:400});
+    const contentStart=headerEnd+separator.length;
+    let next=buffer.indexOf(Buffer.concat([Buffer.from('\r\n'),delimiter]),contentStart);
+    if(next<0) throw Object.assign(new Error('Multipart closing boundary missing'),{status:400});
+    const data=buffer.subarray(contentStart,next);
+    const name=disposition[1];
+    if(disposition[2]!==undefined){
+      if(file) throw Object.assign(new Error('Only one file may be uploaded at a time'),{status:400});
+      const type=headerText.match(/^content-type:\s*([^\r\n]+)$/im)?.[1]?.trim().toLowerCase()||'';
+      file={filename:disposition[2],contentType:type,data:Buffer.from(data)};
+    }else{
+      if(Object.hasOwn(fields,name)) throw Object.assign(new Error('Duplicate multipart field'),{status:400});
+      fields[name]=data.toString('utf8').slice(0,200);
+    }
+    cursor=next+2+delimiter.length;
+    if(buffer.subarray(cursor,cursor+2).equals(Buffer.from('--'))){
+      cursor+=2;
+      if(cursor<buffer.length && !buffer.subarray(cursor,cursor+2).equals(Buffer.from('\r\n'))) throw Object.assign(new Error('Malformed closing boundary'),{status:400});
+      return {fields,file};
+    }
+    if(!buffer.subarray(cursor,cursor+2).equals(Buffer.from('\r\n'))) throw Object.assign(new Error('Malformed multipart delimiter'),{status:400});
+    cursor+=2;
+  }
+  throw Object.assign(new Error('Multipart closing boundary missing'),{status:400});
+}
 async function seed(){ if(process.env.NODE_ENV!=='development'||process.env.SEED_DEMO_USERS!=='true') return; const password=process.env.DEMO_SEED_PASSWORD; if(!password||password.length<14) {console.warn('Demo seeding skipped: set DEMO_SEED_PASSWORD to at least 14 characters.');return;} for(const [email,name,role] of [['admin@trustvault.test','Demo Administrator','Administrator'],['owner@trustvault.test','Demo Owner','DocumentOwner'],['viewer@trustvault.test','Demo Viewer','Viewer']]) { if(q('SELECT id FROM users WHERE email=?',email)) continue; const p=await hashPassword(password); run('INSERT INTO users(id,email,display_name,role,password_hash,salt,created_at) VALUES(?,?,?,?,?,?,?)',randomUUID(),email,name,role,p.hash,p.salt,now()); } }
 await seed();
 const server=http.createServer(route);
