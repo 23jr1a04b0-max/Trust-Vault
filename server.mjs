@@ -20,6 +20,14 @@ const run = (sql, ...args) => DB.prepare(sql).run(...args);
 const now = () => new Date().toISOString();
 const sha = s => createHash('sha256').update(s).digest('hex');
 const safeEqual = (a,b) => { const aa=Buffer.from(a), bb=Buffer.from(b); return aa.length===bb.length && timingSafeEqual(aa,bb); };
+const notificationDto = n => ({id:n.id,type:n.type,title:n.title,message:n.message,createdAt:n.created_at,readAt:n.read_at});
+function createNotification(userId,type,title,message) {
+  run('INSERT INTO notifications(id,user_id,type,title,message,created_at) VALUES(?,?,?,?,?,?)',randomUUID(),userId,type,title,message,now());
+}
+function notifyAdministrators(type,title,message) {
+  for(const admin of all("SELECT id FROM users WHERE role='Administrator' AND disabled=0")) createNotification(admin.id,type,title,message);
+}
+
 if (!DB.prepare('PRAGMA table_info(users)').all().some(c => c.name === 'approval_status')) DB.exec("ALTER TABLE users ADD COLUMN approval_status TEXT NOT NULL DEFAULT 'Approved' CHECK (approval_status IN ('Pending','Approved','Rejected'))");
 if (!DB.prepare('PRAGMA table_info(audit)').all().some(c => c.name === 'hash_version')) DB.exec('ALTER TABLE audit ADD COLUMN hash_version INTEGER NOT NULL DEFAULT 1');
 if (!DB.prepare('PRAGMA table_info(documents)').all().some(c => c.name === 'visibility')) DB.exec("ALTER TABLE documents ADD COLUMN visibility TEXT NOT NULL DEFAULT 'Private' CHECK (visibility IN ('Private','Public'))");
@@ -36,6 +44,8 @@ DB.exec(`CREATE TABLE IF NOT EXISTS access_requests (
   expires_at TEXT
 )`);
 DB.exec('CREATE INDEX IF NOT EXISTS idx_access_requests_owner_status ON access_requests(document_id,status,created_at)');
+DB.exec(`CREATE TABLE IF NOT EXISTS notifications (id TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,type TEXT NOT NULL,title TEXT NOT NULL,message TEXT NOT NULL,created_at TEXT NOT NULL,read_at TEXT)`);
+DB.exec('CREATE INDEX IF NOT EXISTS idx_notifications_user_unread ON notifications(user_id,read_at,created_at)');
 const accessRequestSql=q("SELECT sql FROM sqlite_master WHERE type='table' AND name='access_requests'")?.sql||'';
 if(/UNIQUE\s*\(\s*document_id\s*,\s*requester_id\s*,\s*permission\s*,\s*status\s*\)/i.test(accessRequestSql)) {
   DB.exec(`BEGIN;
@@ -195,6 +205,7 @@ async function route(req,res) {
         try { run('INSERT INTO users(id,email,display_name,role,password_hash,salt,created_at,approval_status) VALUES(?,?,?,?,?,?,?,?)',id,email,name,role,p.hash,p.salt,now(),approvalStatus); }
         catch(err) { if(String(err.message).includes('UNIQUE')) return json(res,409,{error:'An account with this email already exists. Sign in instead.'}); throw err; }
         audit(id,'auth.signup','user',id,'success','self_service_account_created:'+role+':'+approvalStatus,requestId);
+        if(role==='DocumentOwner') notifyAdministrators('owner-registration','New owner registration request',name+' ('+email+') requested a Document Owner account.');
         return json(res,201,{ok:true,userId:id,approvalStatus,message:role==='DocumentOwner'?'Owner request submitted. An administrator must approve your account before you can sign in.':'Account created. You can now sign in.'});
       }
       if(path==='/api/auth/login' && method==='POST') {
@@ -221,6 +232,15 @@ async function route(req,res) {
       if(path==='/api/auth/logout' && method==='POST') { if(!user) return json(res,204,{}); requireCsrf(req,user); run('DELETE FROM sessions WHERE id_hash=?',user.sessionHash); audit(user.id,'auth.logout','user',user.id,'success','session_ended',requestId); return json(res,204,{}, {'set-cookie':`tv_session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0${process.env.NODE_ENV==='production'?'; Secure':''}`}); }
       if(!user) { audit(null,'auth.required', 'route', path,'denied','unauthenticated',requestId); return json(res,401,{error:'Authentication required'}); }
       if(method!=='GET') requireCsrf(req,user);
+      if(path==='/api/notifications' && method==='GET') {
+        const rows=all('SELECT * FROM notifications WHERE user_id=? ORDER BY created_at DESC LIMIT 100',user.id);
+        const unreadCount=q('SELECT COUNT(*) AS count FROM notifications WHERE user_id=? AND read_at IS NULL',user.id).count;
+        return json(res,200,{notifications:rows.map(notificationDto),unreadCount});
+      }
+      if(path==='/api/notifications/read-all' && method==='POST') {
+        run('UPDATE notifications SET read_at=? WHERE user_id=? AND read_at IS NULL',now(),user.id);
+        return json(res,200,{ok:true});
+      }
       if(path==='/api/documents' && method==='GET') {
         const docs=all(`SELECT DISTINCT d.* FROM documents d LEFT JOIN grants g ON g.document_id=d.id AND g.user_id=? AND g.revoked_at IS NULL WHERE d.deleted_at IS NULL AND (d.owner_id=? OR g.user_id=? OR d.visibility='Public') ORDER BY d.created_at DESC`,user.id,user.id,user.id).filter(d=>d.visibility==='Public'||hasDocAccess(user,d));
         audit(user.id,'document.list','collection',null,'success',`visible_count:${docs.length}`,requestId);
@@ -292,6 +312,7 @@ async function route(req,res) {
         const requestIdValue=randomUUID();
         run("INSERT INTO access_requests(id,document_id,requester_id,permission,status,created_at) VALUES(?,?,?,?,'Pending',?)",requestIdValue,d.id,user.id,permission,now());
         audit(user.id,'access_request.create','document',d.id,'success',permission,requestId);
+        createNotification(d.owner_id,'document-access-request','New document access request',user.display_name+' requested '+permission+' access to '+d.name+'.');
         return json(res,201,{ok:true,requestId:requestIdValue});
       }
       if(path==='/api/access-requests' && method==='GET') {
@@ -312,6 +333,8 @@ async function route(req,res) {
         }
         run('UPDATE access_requests SET status=?,decided_at=?,decided_by=?,expires_at=? WHERE id=?',status,now(),user.id,expiresAt,request.id);
         audit(user.id,'access_request.decide','document',request.document_id,'success',status+':'+request.permission,requestId);
+        const decidedDocName=q('SELECT name FROM documents WHERE id=?',request.document_id)?.name||'the document';
+        createNotification(request.requester_id,'document-access-decision','Document access request '+status.toLowerCase(),'Your '+request.permission+' request for '+decidedDocName+' was '+status.toLowerCase()+'.');
         return json(res,200,{ok:true,status});
       }
       if(path==='/api/users' && method==='GET') { if(user.role!=='Administrator') { audit(user.id,'admin.users.read','collection',null,'denied','administrator_role_required',requestId); return json(res,403,{error:'Administrator role required'}); } audit(user.id,'admin.users.read','collection',null,'success','account_metadata_read',requestId); return json(res,200,{users:all("SELECT id,email,display_name,role,disabled,approval_status,created_at FROM users ORDER BY CASE WHEN role='DocumentOwner' AND approval_status='Pending' THEN 0 ELSE 1 END,created_at DESC")}); }
@@ -327,6 +350,7 @@ async function route(req,res) {
           run('UPDATE users SET approval_status=? WHERE id=?',input.approvalStatus,targetId);
           if(input.approvalStatus!=='Approved') run('DELETE FROM sessions WHERE user_id=?',targetId);
           audit(user.id,'owner.account.review','user',targetId,'success',input.approvalStatus.toLowerCase(),requestId);
+          createNotification(targetId,'owner-account-status','Document Owner account '+input.approvalStatus.toLowerCase(),input.approvalStatus==='Approved'?'Your Document Owner account has been approved. You can now sign in.':'Your Document Owner account request was rejected.');
           return json(res,200,{ok:true,approvalStatus:input.approvalStatus});
         }
         if(typeof input.disabled!=='boolean') return json(res,400,{error:'Provide a disabled boolean or an owner approvalStatus.'});
