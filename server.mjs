@@ -20,6 +20,7 @@ const run = (sql, ...args) => DB.prepare(sql).run(...args);
 const now = () => new Date().toISOString();
 const sha = s => createHash('sha256').update(s).digest('hex');
 const safeEqual = (a,b) => { const aa=Buffer.from(a), bb=Buffer.from(b); return aa.length===bb.length && timingSafeEqual(aa,bb); };
+if (!DB.prepare('PRAGMA table_info(users)').all().some(c => c.name === 'approval_status')) DB.exec("ALTER TABLE users ADD COLUMN approval_status TEXT NOT NULL DEFAULT 'Approved' CHECK (approval_status IN ('Pending','Approved','Rejected'))");
 if (!DB.prepare('PRAGMA table_info(audit)').all().some(c => c.name === 'hash_version')) DB.exec('ALTER TABLE audit ADD COLUMN hash_version INTEGER NOT NULL DEFAULT 1');
 if (!DB.prepare('PRAGMA table_info(documents)').all().some(c => c.name === 'visibility')) DB.exec("ALTER TABLE documents ADD COLUMN visibility TEXT NOT NULL DEFAULT 'Private' CHECK (visibility IN ('Private','Public'))");
 if (!DB.prepare('PRAGMA table_info(grants)').all().some(c => c.name === 'expires_at')) DB.exec('ALTER TABLE grants ADD COLUMN expires_at TEXT');
@@ -190,10 +191,11 @@ async function route(req,res) {
         if(q('SELECT id FROM users WHERE email=?',email)) { audit(null,'auth.signup','user',null,'denied','email_already_registered',requestId); return json(res,409,{error:'An account with this email already exists. Sign in instead.'}); }
         const p=await hashPassword(password);
         const id=randomUUID();
-        try { run('INSERT INTO users(id,email,display_name,role,password_hash,salt,created_at) VALUES(?,?,?,?,?,?,?)',id,email,name,role,p.hash,p.salt,now()); }
+        const approvalStatus=role==='DocumentOwner'?'Pending':'Approved';
+        try { run('INSERT INTO users(id,email,display_name,role,password_hash,salt,created_at,approval_status) VALUES(?,?,?,?,?,?,?,?)',id,email,name,role,p.hash,p.salt,now(),approvalStatus); }
         catch(err) { if(String(err.message).includes('UNIQUE')) return json(res,409,{error:'An account with this email already exists. Sign in instead.'}); throw err; }
-        audit(id,'auth.signup','user',id,'success','self_service_account_created:'+role,requestId);
-        return json(res,201,{ok:true,message:'Account created. Sign in with your new credentials.'});
+        audit(id,'auth.signup','user',id,'success','self_service_account_created:'+role+':'+approvalStatus,requestId);
+        return json(res,201,{ok:true,approvalStatus,message:role==='DocumentOwner'?'Owner request submitted. An administrator must approve your account before you can sign in.':'Account created. You can now sign in.'});
       }
       if(path==='/api/auth/login' && method==='POST') {
         const d=await readJson(req); const email=String(d.email||'').trim().toLowerCase(); const password=String(d.password||''); const requestedRole=String(d.role||'');
@@ -206,6 +208,7 @@ async function route(req,res) {
         const ok=!!u && !u.disabled && passwordMatches;
         audit(ok?u.id:null,'auth.login','user',ok?u.id:null,ok?'success':'denied','invalid_credentials_or_account_unavailable',requestId);
         if(!ok) return json(res,401,{error:'Email or password is incorrect.'});
+        if(u.role==='DocumentOwner' && u.approval_status!=='Approved') { audit(u.id,'auth.login.pending_owner','user',u.id,'denied','owner_account_'+String(u.approval_status||'Pending').toLowerCase(),requestId); return json(res,403,{error:u.approval_status==='Rejected'?'Your owner account request was rejected. Contact the administrator.':'Your owner account is awaiting administrator approval.'}); }
         if(!['Administrator','DocumentOwner','Viewer'].includes(requestedRole) || requestedRole!==u.role) return json(res,403,{error:'This account does not match the selected role. Choose the role assigned to your account.'});
         // Rotate the browser session at login and invalidate any prior session cookie.
         const priorToken=cookies(req).tv_session; if(priorToken) run('DELETE FROM sessions WHERE id_hash=?',sha(priorToken));
@@ -311,15 +314,23 @@ async function route(req,res) {
         audit(user.id,'access_request.decide','document',request.document_id,'success',status+':'+request.permission,requestId);
         return json(res,200,{ok:true,status});
       }
-      if(path==='/api/users' && method==='GET') { if(user.role!=='Administrator') { audit(user.id,'admin.users.read','collection',null,'denied','administrator_role_required',requestId); return json(res,403,{error:'Administrator role required'}); } audit(user.id,'admin.users.read','collection',null,'success','account_metadata_read',requestId); return json(res,200,{users:all('SELECT id,email,display_name,role,disabled,created_at FROM users ORDER BY created_at DESC')}); }
+      if(path==='/api/users' && method==='GET') { if(user.role!=='Administrator') { audit(user.id,'admin.users.read','collection',null,'denied','administrator_role_required',requestId); return json(res,403,{error:'Administrator role required'}); } audit(user.id,'admin.users.read','collection',null,'success','account_metadata_read',requestId); return json(res,200,{users:all("SELECT id,email,display_name,role,disabled,approval_status,created_at FROM users ORDER BY CASE WHEN role='DocumentOwner' AND approval_status='Pending' THEN 0 ELSE 1 END,created_at DESC")}); }
       const userMatch=path.match(/^\/api\/users\/([0-9a-f-]+)$/i);
       if(userMatch && method==='PATCH') {
         if(user.role!=='Administrator') { audit(user.id,'user.account.update','user',userMatch[1],'denied','administrator_role_required',requestId); return json(res,403,{error:'Administrator role required'}); }
         const targetId=userMatch[1], input=await readJson(req);
-        if(typeof input.disabled!=='boolean') return json(res,400,{error:'Provide a disabled boolean.'});
-        if(targetId===user.id && input.disabled) return json(res,400,{error:'You cannot disable your own account.'});
-        const target=q('SELECT id,email,disabled FROM users WHERE id=?',targetId);
+        const target=q('SELECT id,email,role,disabled,approval_status FROM users WHERE id=?',targetId);
         if(!target) return json(res,404,{error:'User not found'});
+        if(input.approvalStatus!==undefined) {
+          if(target.role!=='DocumentOwner') return json(res,400,{error:'Only Document Owner accounts require approval.'});
+          if(!['Approved','Rejected'].includes(input.approvalStatus)) return json(res,400,{error:'Approval status must be Approved or Rejected.'});
+          run('UPDATE users SET approval_status=? WHERE id=?',input.approvalStatus,targetId);
+          if(input.approvalStatus!=='Approved') run('DELETE FROM sessions WHERE user_id=?',targetId);
+          audit(user.id,'owner.account.review','user',targetId,'success',input.approvalStatus.toLowerCase(),requestId);
+          return json(res,200,{ok:true,approvalStatus:input.approvalStatus});
+        }
+        if(typeof input.disabled!=='boolean') return json(res,400,{error:'Provide a disabled boolean or an owner approvalStatus.'});
+        if(targetId===user.id && input.disabled) return json(res,400,{error:'You cannot disable your own account.'});
         run('UPDATE users SET disabled=? WHERE id=?',input.disabled?1:0,targetId);
         if(input.disabled) run('DELETE FROM sessions WHERE user_id=?',targetId);
         audit(user.id,input.disabled?'user.disable':'user.enable','user',targetId,'success',input.disabled?'account_disabled_and_sessions_revoked':'account_enabled',requestId);
