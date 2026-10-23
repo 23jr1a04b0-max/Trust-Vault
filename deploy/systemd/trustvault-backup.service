@@ -1,0 +1,11 @@
+[Unit]
+Description=Encrypted off-host TrustVault backup
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/trustvault
+EnvironmentFile=/etc/trustvault/backup.env
+ExecStart=/bin/bash /opt/trustvault/scripts/backup.sh
+User=root
