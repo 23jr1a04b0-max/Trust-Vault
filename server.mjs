@@ -180,7 +180,7 @@ async function deliverAuditOutbox() {
     const item=q('SELECT id,seq,payload,attempts FROM audit_outbox WHERE next_attempt_at<=? ORDER BY seq LIMIT 1',Date.now());
     if(!item) return;
     try {
-      await sendAuditEvent(item.payload,{url:AUDIT_SINK_URL,token:AUDIT_SINK_TOKEN,hmacKey:auditKey});
+      await sendAuditEvent(JSON.parse(item.payload),{url:AUDIT_SINK_URL,token:AUDIT_SINK_TOKEN,hmacKey:auditKey});
       run('DELETE FROM audit_outbox WHERE id=?',item.id);
     } catch(error) {
       const attempts=item.attempts+1;
