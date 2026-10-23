@@ -21,7 +21,7 @@ Errors return JSON shaped like `{ "error": "message" }`. Document access denied 
 - `PATCH /api/documents/:id`: update name/category; requires Edit or owner access.
 - `DELETE /api/documents/:id`: soft-delete; owner only.
 - `GET /api/documents/:id/permissions`: list grants; owner only.
-- `POST /api/documents/:id/permissions`: JSON `{ "email": "registered-user@example.test", "permission": "Read|Download|Edit" }`; owner only. The current implementation does not set a grant expiry through this endpoint.
+- `POST /api/documents/:id/permissions`: JSON `{ "email": "registered-user@example.test", "permission": "Read|Download|Edit" }`; owner only. Optional `expiresAt` accepts a future ISO date/time; omit it or pass null for no expiry.
 - `DELETE /api/documents/:id/permissions?userId=...`: revoke a grant; owner only.
 - `GET /api/documents/:id/audit`: recent document audit metadata; owner only.
 
