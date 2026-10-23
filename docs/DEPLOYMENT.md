@@ -50,6 +50,7 @@ The CI workflow builds the image and starts it briefly to smoke-test the health 
 
 - Set `NODE_ENV=production`.
 - Set `AUDIT_HMAC_KEY` to a randomly generated secret of at least 32 bytes using the hosting platform's secret manager.
+- Set `MFA_ENCRYPTION_KEY` to a separate random 32-byte key encoded as 64 hexadecimal characters. Protect it in the secret manager and maintain a secure recovery copy; losing this key makes enrolled TOTP secrets unrecoverable.
 - Set `TRUSTED_ORIGINS` to the exact HTTPS origin(s), for example `https://vault.example.com`; do not include paths.
 - Keep `SEED_DEMO_USERS` unset or false.
 - Set `PORT` as required by the host.
@@ -58,5 +59,6 @@ The CI workflow builds the image and starts it briefly to smoke-test the health 
 - Keep ClamAV's TCP port private to the Compose network. Do not publish port 3310 to the host or internet. Keep the scanner signatures updated and monitor scanner health.
 - Install and test the sample Nginx rate-limit configuration or an equivalent shared edge limiter before public access.
 - Verify health endpoint, cookies, Origin enforcement, uploads, grants, revocation, audit verification, and logs in the target environment.
+- Test administrator MFA enrollment/sign-in with a real authenticator in staging. Secure password recovery and an emergency MFA reset procedure remain outstanding.
 
 No live deployment URL or production credentials are currently supplied by this repository. Do not claim deployment is complete until a real URL has been tested.
