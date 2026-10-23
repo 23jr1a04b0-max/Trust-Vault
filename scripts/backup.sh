@@ -18,7 +18,9 @@ cleanup() {
   rm -rf -- "$backup_dir"
   exit "$status"
 }
-trap cleanup EXIT INT TERM
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 # Stop writes so the SQLite database and private-files archive are consistent.
 docker compose stop trustvault
