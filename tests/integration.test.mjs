@@ -70,8 +70,9 @@ test('HTTP authorization: private isolation, Read versus Download, approval and 
     form.append('category', 'Tests');
     form.append('visibility', visibility);
     const response = await request(owner, '/api/documents', { method: 'POST', body: form });
-    assert.equal(response.status, 201, await response.text());
-    return (await response.json()).document;
+    const responseText = await response.text();
+    assert.equal(response.status, 201, responseText);
+    return JSON.parse(responseText).document;
   }
   const owner = await login('owner@trustvault.test');
   const viewer = await login('viewer@trustvault.test');
