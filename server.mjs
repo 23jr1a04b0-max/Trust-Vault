@@ -1,5 +1,5 @@
 import http from 'node:http';
-import { createReadStream, createWriteStream, mkdirSync, existsSync, unlinkSync, readFileSync, writeFileSync } from 'node:fs';
+import { createReadStream, createWriteStream, mkdirSync, existsSync, unlinkSync, readFileSync, writeFileSync, renameSync } from 'node:fs';
 import { resolve, extname, basename, join } from 'node:path';
 import { randomBytes, randomUUID, scrypt as scryptCb, timingSafeEqual, createHash, createHmac } from 'node:crypto';
 import { promisify } from 'node:util';
@@ -80,6 +80,23 @@ if (process.env.NODE_ENV === 'production') {
   if (auditKey.length < 32) throw new Error('Local audit HMAC key is invalid.');
 }
 const auditMac = value => createHmac('sha256', auditKey).update(value).digest('hex');
+const AUDIT_CHECKPOINT = join(DATA, 'audit-checkpoint.json');
+function persistAuditCheckpoint() {
+  const latest=q('SELECT seq,hash FROM audit ORDER BY seq DESC LIMIT 1');
+  const checkpoint={version:1,seq:latest?.seq||0,hash:latest?.hash||'GENESIS',updatedAt:now()};
+  const temporary=AUDIT_CHECKPOINT+'.tmp';
+  writeFileSync(temporary,JSON.stringify(checkpoint)+'\\n',{mode:0o600});
+  renameSync(temporary,AUDIT_CHECKPOINT);
+}
+function readAuditCheckpoint() {
+  try {
+    const value=JSON.parse(readFileSync(AUDIT_CHECKPOINT,'utf8'));
+    if(value?.version!==1 || !Number.isSafeInteger(value.seq) || value.seq<0 || typeof value.hash!=='string') return null;
+    return value;
+  } catch { return null; }
+}
+// Bootstrap once for existing databases; later database-only tail deletion is detectable.
+if(!existsSync(AUDIT_CHECKPOINT)) persistAuditCheckpoint();
 // Migrate existing local MVP databases without requiring users to delete demo data.
 if (!DB.prepare('PRAGMA table_info(sessions)').all().some(c => c.name === 'last_seen_at')) {
   DB.exec('ALTER TABLE sessions ADD COLUMN last_seen_at INTEGER NOT NULL DEFAULT 0');
@@ -123,8 +140,12 @@ function audit(actor, action, targetType, targetId, outcome, reason, requestId) 
   const hashVersion=2;
   const hash=auditMac(JSON.stringify({...event,hash_version:hashVersion}));
   run('INSERT INTO audit(id,at,actor_id,action,target_type,target_id,outcome,reason,request_id,prev_hash,hash,hash_version) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)',event.id,event.at,event.actor_id,event.action,event.target_type,event.target_id,event.outcome,event.reason,event.request_id,event.prev_hash,hash,hashVersion);
+  persistAuditCheckpoint();
 }
 function verifyAudit() {
+  const checkpoint=readAuditCheckpoint();
+  const latest=q('SELECT seq,hash FROM audit ORDER BY seq DESC LIMIT 1');
+  if(!checkpoint || checkpoint.seq!==(latest?.seq||0) || checkpoint.hash!==(latest?.hash||'GENESIS')) return {valid:false,checked:all('SELECT seq FROM audit').length,failedEvent:null,reason:'audit_checkpoint_mismatch'};
   const events=all('SELECT * FROM audit ORDER BY seq'); let prev='GENESIS';
   for(const e of events){
     const canonical={id:e.id,at:e.at,actor_id:e.actor_id,action:e.action,target_type:e.target_type,target_id:e.target_id,outcome:e.outcome,reason:e.reason,request_id:e.request_id,prev_hash:e.prev_hash};
