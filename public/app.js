@@ -24,7 +24,7 @@ function showLoginForRole(role) {
   $('login-title').textContent = roleDetails[role].title;
   $('login-role-description').textContent = roleDetails[role].description;
   $('signup-prompt').hidden = role === 'Administrator';
-  $('session-status').textContent = roleDetails[role].title;
+  $('session-status').textContent = roleDetails[role].title;\n  $('mfa-code-row').hidden = role !== 'Administrator';
 }
 function showSignup() {
   if (!['DocumentOwner','Viewer'].includes(selectedRole)) return;
@@ -121,7 +121,7 @@ function showAuthenticated(user, token) {
   $('welcome-subtitle').textContent = user.email;
   $('upload-panel').hidden = user.role !== 'DocumentOwner';
   $('requests-panel').hidden = user.role !== 'DocumentOwner';
-  $('admin-panel').hidden = user.role !== 'Administrator';
+  $('admin-panel').hidden = user.role !== 'Administrator';\n  $('admin-mfa-panel').hidden = user.role !== 'Administrator' || Boolean(user.mfaEnabled);\n  $('admin-tools').hidden = user.role === 'Administrator' && !user.mfaEnabled;
   loadDocuments();
   if (user.role === 'DocumentOwner') loadAccessRequests();
 }
@@ -297,7 +297,7 @@ $('login-form').addEventListener('submit', async event => {
   try {
     const data = await api('/api/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ email: form.get('email'), password: form.get('password'), role: selectedRole })
+      body: JSON.stringify({ email: form.get('email'), password: form.get('password'), role: selectedRole, mfaCode: form.get('mfaCode') })
     });
     showAuthenticated(data.user, data.csrfToken);
     notice('Signed in successfully.', 'success');
@@ -393,6 +393,24 @@ $('users-refresh').addEventListener('click', async () => {
     }
     if(!data.users.length) list.append(el('p','muted','No accounts found.'));
   }catch(error){list.replaceChildren(el('p','',error.message));notice(error.message,'error');}
+});
+$('mfa-enroll-button').addEventListener('click', async () => {
+  try {
+    const data = await api('/api/admin/mfa/enroll',{method:'POST',body:'{}'});
+    $('mfa-secret-value').textContent = data.secret;
+    $('mfa-otpauth-uri').textContent = data.otpauthUri;
+    $('mfa-enroll-details').hidden = false;
+    notice('Add the secret to your authenticator app, then enter the current 6-digit code.','success');
+  } catch(error) { notice(error.message,'error'); }
+});
+$('mfa-verify-form').addEventListener('submit', async event => {
+  event.preventDefault();
+  try {
+    await api('/api/admin/mfa/verify',{method:'POST',body:JSON.stringify({code:$('mfa-verify-code').value.trim()})});
+    const data = await api('/api/auth/me');
+    showAuthenticated(data.user,data.csrfToken);
+    notice('Administrator MFA is enabled. Future sign-ins require an authenticator code.','success');
+  } catch(error) { notice(error.message,'error'); }
 });
 $('audit-verify').addEventListener('click', async () => {
   try {
