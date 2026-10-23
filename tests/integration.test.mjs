@@ -97,9 +97,13 @@ test('HTTP authorization: private isolation, Read versus Download, approval and 
   const owner = await login('owner@trustvault.test');
   const viewer = await login('viewer@trustvault.test');
   const signupResponse=await fetch(base+'/api/auth/signup',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({name:'New Owner',email:'new-owner@trustvault.test',password:'Long-Enough-Test-Pass-123',role:'DocumentOwner'})});
-  assert.equal(signupResponse.status,201,await signupResponse.text());
+  const signupOwnerData=await signupResponse.json();
+  assert.equal(signupResponse.status,201,JSON.stringify(signupOwnerData));
+  assert.equal(signupOwnerData.approvalStatus,'Pending','new owner accounts must require administrator approval');
   const signupViewer=await fetch(base+'/api/auth/signup',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({name:'New Viewer',email:'new-viewer@trustvault.test',password:'Long-Enough-Test-Pass-456',role:'Viewer'})});
-  assert.equal(signupViewer.status,201,await signupViewer.text());
+  const signupViewerData=await signupViewer.json();
+  assert.equal(signupViewer.status,201,JSON.stringify(signupViewerData));
+  assert.equal(signupViewerData.approvalStatus,'Approved','viewer accounts should be registered immediately');
   const signupAdmin=await fetch(base+'/api/auth/signup',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({name:'Fake Admin',email:'fake-admin@trustvault.test',password:'Long-Enough-Test-Pass-789',role:'Administrator'})});
   assert.equal(signupAdmin.status,400,'public sign-up must never create administrator accounts');
   const wrongRoleLogin=await fetch(base+'/api/auth/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email:'owner@trustvault.test',password,role:'Viewer'})});
@@ -107,6 +111,20 @@ test('HTTP authorization: private isolation, Read versus Download, approval and 
   const duplicateSignup=await fetch(base+'/api/auth/signup',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({name:'Duplicate',email:'new-owner@trustvault.test',password:'Long-Enough-Test-Pass-123',role:'DocumentOwner'})});
   assert.equal(duplicateSignup.status,409,'duplicate email sign-up must be rejected');
   const admin = await login('admin@trustvault.test');
+  const pendingOwnerLogin=await fetch(base+'/api/auth/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email:'new-owner@trustvault.test',password:'Long-Enough-Test-Pass-123',role:'DocumentOwner'})});
+  assert.equal(pendingOwnerLogin.status,403,'pending owner must not sign in before approval');
+  assert.match((await pendingOwnerLogin.json()).error,/awaiting administrator approval/i);
+  const adminApprovesOwner=await request(admin,'/api/users/'+signupOwnerData.userId,{method:'PATCH',body:JSON.stringify({approvalStatus:'Approved'})});
+  assert.equal(adminApprovesOwner.status,200,await adminApprovesOwner.text());
+  const approvedOwnerLogin=await fetch(base+'/api/auth/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email:'new-owner@trustvault.test',password:'Long-Enough-Test-Pass-123',role:'DocumentOwner'})});
+  assert.equal(approvedOwnerLogin.status,200,'approved owner should be allowed to sign in');
+  const rejectOwner=await fetch(base+'/api/auth/signup',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({name:'Rejected Owner',email:'rejected-owner@trustvault.test',password:'Long-Enough-Test-Pass-987',role:'DocumentOwner'})});
+  const rejectOwnerData=await rejectOwner.json();
+  assert.equal(rejectOwner.status,201);
+  const adminRejectsOwner=await request(admin,'/api/users/'+rejectOwnerData.userId,{method:'PATCH',body:JSON.stringify({approvalStatus:'Rejected'})});
+  assert.equal(adminRejectsOwner.status,200,await adminRejectsOwner.text());
+  const rejectedOwnerLogin=await fetch(base+'/api/auth/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email:'rejected-owner@trustvault.test',password:'Long-Enough-Test-Pass-987',role:'DocumentOwner'})});
+  assert.equal(rejectedOwnerLogin.status,403,'rejected owner must not sign in');
   assert.equal((await fetch(base + '/api/documents')).status, 401);
 
   const privateDoc = await upload(owner, 'Private', 'private.txt');
