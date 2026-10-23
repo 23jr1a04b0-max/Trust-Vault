@@ -84,6 +84,7 @@ const AUDIT_CHECKPOINT = join(DATA, 'audit-checkpoint.json');
 function persistAuditCheckpoint() {
   const latest=q('SELECT seq,hash FROM audit ORDER BY seq DESC LIMIT 1');
   const existing=readAuditCheckpoint();
+  if(existsSync(AUDIT_CHECKPOINT) && !existing) return;
   if(existing) {
     const anchored=existing.seq===0 ? existing.hash==='GENESIS' : q('SELECT hash FROM audit WHERE seq=?',existing.seq)?.hash===existing.hash;
     if(!anchored || existing.seq>(latest?.seq||0)) return;
