@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, existsSync } from 'node:fs';
 
 test('required application files exist', () => {
-  for (const path of ['db/schema.sql','public/index.html','public/app.js','public/app.css','public/404.html']) {
+  for (const path of ['db/schema.sql','public/index.html','public/app.js','public/app.css','public/404.html','public/favicon.svg']) {
     assert.ok(existsSync(path), `Missing required application file: ${path}`);
   }
 });
@@ -21,5 +21,6 @@ test('static entry point does not expose private storage paths', () => {
   const html = readFileSync('public/index.html','utf8');
   assert.match(html, /name="description"/);
   assert.match(html, /\/app\.js/);
+  assert.match(html, /\/favicon\.svg/);
   assert.doesNotMatch(html, /private-files|audit-hmac\.key/);
 });
