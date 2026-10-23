@@ -37,8 +37,9 @@ test('production administrators must enroll TOTP and use non-replayed codes',asy
     return fetch(base+'/api/auth/login',{method:'POST',headers:{origin:trustedOrigin,'content-type':'application/json'},body:JSON.stringify({email:'admin@trustvault.test',password,role:'Administrator',mfaCode})});
   }
   let response=await login();
-  assert.equal(response.status,200,await response.text(),'initial admin can sign in only to complete MFA setup');
-  let loginData=await response.json();
+  let responseText=await response.text();
+  assert.equal(response.status,200,responseText+' initial admin can sign in only to complete MFA setup');
+  let loginData=JSON.parse(responseText);
   let cookie=response.headers.get('set-cookie').split(';')[0];
   async function api(path,body){
     return fetch(base+path,{method:'POST',headers:{origin:trustedOrigin,cookie,'x-csrf-token':loginData.csrfToken,'content-type':'application/json'},body:JSON.stringify(body)});
