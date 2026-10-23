@@ -31,7 +31,9 @@ try {
   if (result.error) throw result.error;
   assert.notEqual(result.status, 0,
     'Security integration test unexpectedly passed after the download authorization check was removed');
-  console.log('PASS: HTTP integration test fails when the download authorization check is removed.');
+  assert.match(result.stdout + result.stderr, /Read permission must not allow downloading/,
+    'Mutation must be detected by the Read-versus-Download authorization assertion, not an unrelated failure');
+  console.log('PASS: HTTP integration test fails specifically because Read-only access can download after the authorization check is removed.');
 } finally {
   rmSync(temp, { recursive: true, force: true });
 }
