@@ -48,7 +48,7 @@ test('production HTTP origin checks and Secure session cookie',async t=>{
   t.after(async()=>{child.kill('SIGTERM');if(child.exitCode===null)await new Promise(resolve=>child.once('exit',resolve));rmSync(temp,{recursive:true,force:true});});
   await waitReady(base,child,()=>output);
   assert.equal((await fetch(base+'/api/health')).status,200,'health check remains available without Origin');
-  const missing=await fetch(base+'/api/auth/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email:'viewer@trustvault.test',password})});
+  const missing=await fetch(base+'/api/auth/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email:'viewer@trustvault.test',password,role:'Viewer'})});
   assert.equal(missing.status,403,'production must reject state-changing requests without Origin');
   const wrong=await fetch(base+'/api/auth/login',{method:'POST',headers:{origin:'https://attacker.example.test','content-type':'application/json'},body:JSON.stringify({email:'viewer@trustvault.test',password})});
   assert.equal(wrong.status,403,'production must reject untrusted Origin');
