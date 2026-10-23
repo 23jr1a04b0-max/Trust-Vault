@@ -11,6 +11,11 @@ services:
       AUDIT_HMAC_KEY: ${AUDIT_HMAC_KEY:?Set AUDIT_HMAC_KEY to a random secret of at least 32 bytes in .env}
       TRUSTED_ORIGINS: ${TRUSTED_ORIGINS:?Set TRUSTED_ORIGINS to the exact HTTPS origin in .env}
       MAX_UPLOAD_BYTES: ${MAX_UPLOAD_BYTES:-10485760}
+      CLAMAV_HOST: clamav
+      CLAMAV_PORT: "3310"
+    depends_on:
+      clamav:
+        condition: service_healthy
     ports:
       - "127.0.0.1:${TRUSTVAULT_PORT:-3000}:3000"
     volumes:
@@ -30,6 +35,24 @@ services:
       start_period: 10s
       retries: 3
 
+  clamav:
+    image: clamav/clamav:1.4
+    restart: unless-stopped
+    # Deliberately no published ports: only the application reaches clamd.
+    volumes:
+      - clamav_database:/var/lib/clamav
+    healthcheck:
+      test: ["CMD-SHELL", "clamdscan --ping=3"]
+      interval: 30s
+      timeout: 10s
+      start_period: 180s
+      retries: 5
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
 volumes:
   trustvault_data:
   trustvault_private_files:
+  clamav_database:
