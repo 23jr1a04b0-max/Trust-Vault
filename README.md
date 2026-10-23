@@ -54,7 +54,7 @@ npm test
 npm run check
 ```
 
-The suite uses actual HTTP requests against disposable local servers, covers cross-user document isolation, role boundaries, Read/Edit grants, revocation, session invalidation, upload validation, CSRF, audit integrity, denied access events, and responsive UI constraints. The mutation check removes the download authorization check in a temporary copy and verifies that the security test fails.
+The HTTP integration test uses a disposable local server and currently verifies private-document metadata isolation, Read-versus-Download enforcement, revocation, public metadata discovery, duplicate pending-request rejection, and owner approval. Static tests check required files/schema/configuration. The mutation check removes the download authorization guard in a temporary copy and requires the integration test to fail specifically because Read-only access can download. Session expiry, full CSRF/Origin behavior, broad upload attack cases, admin boundaries, audit tampering, and every route still need dedicated runtime tests.
 
 Passing these tests is not a penetration test or a production certification.
 
@@ -81,4 +81,4 @@ The audit HMAC key must be protected independently of the database. HMAC makes d
 
 ## Submission status
 
-The live URL, public repository visibility, live role credentials, recorded demo video, multi-day commit history, and external security assessment are not yet complete. Do not present any of these as finished. Keep `PROMPTS.md` accurate and add entries when real follow-up work and commits occur.
+The live URL, live role credentials, recorded demo video, multi-day commit history, and external security assessment are not yet complete. The GitHub branch has automated checks, but this is not a production certification. Do not present any of these as finished. Keep `PROMPTS.md` accurate and add entries when real follow-up work and commits occur.
