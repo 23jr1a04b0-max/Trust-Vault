@@ -91,7 +91,7 @@ function persistAuditCheckpoint() {
   }
   const checkpoint={version:1,seq:latest?.seq||0,hash:latest?.hash||'GENESIS',updatedAt:now()};
   const temporary=AUDIT_CHECKPOINT+'.tmp';
-  writeFileSync(temporary,JSON.stringify(checkpoint)+'\\n',{mode:0o600});
+  writeFileSync(temporary,JSON.stringify(checkpoint)+'\n',{mode:0o600});
   renameSync(temporary,AUDIT_CHECKPOINT);
 }
 function readAuditCheckpoint() {
