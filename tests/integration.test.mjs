@@ -227,6 +227,8 @@ test('HTTP authorization: private isolation, Read versus Download, approval and 
   const verifyAfterText=await verifyAfterAttempts.text();
   assert.equal(verifyAfterAttempts.status,200,verifyAfterText);
   assert.equal(JSON.parse(verifyAfterText).valid,true,'denied login attempts should be recorded without breaking audit integrity');
+  const selfDisable=await request(admin,`/api/users/${admin.user.id}`,{method:'PATCH',body:JSON.stringify({disabled:true})});
+  assert.equal(selfDisable.status,400,'administrator must not disable its own account');
   const disable=await request(admin,`/api/users/${viewer.user.id}`,{method:'PATCH',body:JSON.stringify({disabled:true})});
   assert.equal(disable.status,200,await disable.text());
   assert.equal((await request(viewer,'/api/documents')).status,401,'disabling an account must invalidate its existing session');
@@ -237,4 +239,11 @@ test('HTTP authorization: private isolation, Read versus Download, approval and 
   const finalAuditText=await finalAudit.text();
   assert.equal(finalAudit.status,200,finalAuditText);
   assert.equal(JSON.parse(finalAuditText).valid,true,'audit chain should remain valid after account disable and logout');
+  const tamperDb=new DatabaseSync(join(temp,'data','trustvault.sqlite'));
+  tamperDb.prepare("UPDATE audit SET reason='tampered-after-write' WHERE seq=(SELECT MAX(seq) FROM audit)").run();
+  tamperDb.close();
+  const tamperedAudit=await request(admin,'/api/audit/verify',{method:'POST',body:'{}'});
+  const tamperedText=await tamperedAudit.text();
+  assert.equal(tamperedAudit.status,500,tamperedText);
+  assert.equal(JSON.parse(tamperedText).valid,false,'audit verification must detect database-only event tampering');
 });
