@@ -9,7 +9,7 @@ This review describes the GitHub working branch `23jr1a04b0-max-patch-1`. Change
 ## Automated checks verified on GitHub Actions
 
 - `npm run check` passed, including JavaScript syntax checks, HTTP integration tests, source/schema checks, and the authorization mutation test.
-- HTTP integration tests exercise private-document metadata isolation, administrator content boundaries, Read versus Download and Edit permissions, grant expiry and revocation, access-request approval and repeat requests, owner-only deletion, public/private request boundaries, upload rejection cases, CSRF, login throttling, account disablement, logout, and audit-chain consistency.
+- HTTP integration tests exercise private-document metadata isolation, administrator content boundaries, Read versus Download and Edit permissions, grant expiry and revocation, access-request approval and repeat requests, owner-only deletion, public/private request boundaries, upload rejection cases, CSRF, login throttling, account disablement, logout, and audit-chain consistency and database-only audit-event tampering detection.
 - The production-mode HTTP test passed for missing/wrong/trusted Origin handling and Secure, HttpOnly, SameSite=Strict session cookies.
 - The mutation test removes the download authorization guard in a temporary copy and verifies that the integration test fails on the expected Read-versus-Download assertion.
 - GitHub Actions built the Docker image and started it with production configuration; the health endpoint smoke test passed.
@@ -33,7 +33,7 @@ Passing these checks does not establish that every route is secure, that the app
 - Node's built-in SQLite API is experimental in the Node 22 runtime used by CI. A production database and migration/concurrency strategy need review.
 - The custom multipart parser and basic file-signature checks need independent review/fuzzing. Malware scanning and quarantine are absent.
 - Login rate limiting is process-local and needs a shared edge limiter for multi-instance hosting.
-- Audit HMAC does not protect against compromise of the host and key. External immutable audit checkpoints and transactionally coupled audit writes are not implemented.
+- Runtime tests confirm that modifying a stored audit event is detected. Audit HMAC does not protect against compromise of the host and key. External immutable audit checkpoints and transactionally coupled audit writes are not implemented.
 - Production Origin checks have been tested in the application process, but behavior behind the actual TLS reverse proxy and deployed domain remains unverified.
 - Backup/restore drills, monitoring, alerting, retention enforcement, password recovery, MFA, and an independent security review remain outstanding.
 - The current automated suite is focused, not exhaustive; idle/absolute session expiry, broad route authorization, malformed image/PDF parser cases, audit tampering/truncation, and concurrent-stream revocation need more runtime coverage.
