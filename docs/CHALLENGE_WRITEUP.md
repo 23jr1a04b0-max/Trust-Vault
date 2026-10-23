@@ -19,7 +19,7 @@ TrustVault is a Node.js and SQLite review implementation with role-aware session
 
 ## Validation status
 
-The repository includes syntax checks and lightweight tests, with HTTP integration tests being added for private-document isolation, Read-versus-Download enforcement, access-request approval, and revocation. A passing automated run is necessary but not sufficient for security certification.
+The repository includes JavaScript syntax checks, HTTP integration tests for private-document isolation, Read-versus-Download and Edit boundaries, grant expiry and revocation, access-request approval and repeated requests, upload rejection cases, CSRF, login throttling, idle/absolute session expiry, account disablement, logout, audit-chain integrity and tamper detection, plus a mutation test that removes the download guard and requires the HTTP test to fail. Production-mode HTTP tests cover Origin enforcement and Secure session cookies. CI builds and smoke-tests the Docker image. A passing automated run is necessary but not sufficient for security certification.
 
 ## Remaining work
 
