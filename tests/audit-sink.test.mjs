@@ -32,3 +32,9 @@ test('audit sink signs the exact payload and uses idempotency key', async () => 
 test('audit sink treats non-success responses as delivery failures', async () => {
   await assert.rejects(sendAuditEvent({seq:1},{url:'https://audit.example.test',token:'t'.repeat(32),hmacKey:Buffer.from('k'.repeat(32)),fetchImpl:async()=>({ok:false,status:503})}),/HTTP 503/);
 });
+
+test('audit sink refuses redirects to avoid forwarding its bearer token', async () => {
+  let init;
+  await assert.rejects(sendAuditEvent({seq:2},{url:'https://audit.example.test/ingest',token:'t'.repeat(32),hmacKey:Buffer.from('k'.repeat(32)),fetchImpl:async (_url, options)=>{init=options;throw new TypeError('redirect mode error');}}),/redirect mode error/);
+  assert.equal(init.redirect,'error');
+});
