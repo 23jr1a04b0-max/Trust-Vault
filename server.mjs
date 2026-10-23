@@ -240,8 +240,8 @@ async function route(req,res) {
         if(attempts.count>=5) { signupAttempts.set(key,attempts); audit(null,'auth.signup.rate_limited','client',null,'denied','signup_rate_limit',requestId); return json(res,429,{error:'Too many sign-up attempts. Try again later.'},{'retry-after':String(Math.max(1,Math.ceil((attempts.startedAt+LOGIN_WINDOW_MS-current)/1000)))}); }
         attempts.count++; signupAttempts.set(key,attempts);
         if(signupAttempts.size>5000) for(const [attemptKey,value] of signupAttempts) if(current-value.startedAt>=LOGIN_WINDOW_MS) signupAttempts.delete(attemptKey);
-        if(!email||email.length>254||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||!name||name.length>80||password.length<12||password.length>1024) return json(res,400,{error:'Enter a valid name and email, and a password between 12 and 1024 characters.'});
-        if(!['DocumentOwner','Viewer'].includes(role)) return json(res,400,{error:'Choose Document Owner or Viewer. Administrator accounts are created by an existing trusted administrator.'});
+        if(!email||email.length>254||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||!name||name.length>80||password.length<12||password.length>1024) { audit(null,'auth.signup','user',null,'denied','invalid_signup_input',requestId); return json(res,400,{error:'Enter a valid name and email, and a password between 12 and 1024 characters.'}); }
+        if(!['DocumentOwner','Viewer'].includes(role)) { audit(null,'auth.signup','user',null,'denied','invalid_or_privileged_signup_role',requestId); return json(res,400,{error:'Choose Document Owner or Viewer. Administrator accounts are created by an existing trusted administrator.'}); }
         if(q('SELECT id FROM users WHERE email=?',email)) { audit(null,'auth.signup','user',null,'denied','email_already_registered',requestId); return json(res,409,{error:'An account with this email already exists. Sign in instead.'}); }
         const p=await hashPassword(password);
         const id=randomUUID();
@@ -256,7 +256,7 @@ async function route(req,res) {
         const d=await readJson(req); const email=String(d.email||'').trim().toLowerCase(); const password=String(d.password||''); const requestedRole=String(d.role||'');
         const retryAfter=loginRateLimit(req,email);
         if(retryAfter) { audit(null,'auth.login.rate_limited','client',null,'denied','login_rate_limit',requestId); return json(res,429,{error:'Too many login attempts. Try again later.'},{'retry-after':String(retryAfter)}); }
-        if(email.length>254||password.length>1024) return json(res,400,{error:'Invalid login request'});
+        if(email.length>254||password.length>1024) { audit(null,'auth.login','user',null,'denied','invalid_login_input',requestId); return json(res,400,{error:'Invalid login request'}); }
         const u=q('SELECT * FROM users WHERE email=?',email);
         // Perform a password-hash operation even when the account does not exist to reduce timing-based enumeration.
         const passwordMatches=u ? await verifyPassword(password,u) : await verifyPassword(password,dummyPasswordRecord);
@@ -324,7 +324,7 @@ async function route(req,res) {
           if(!d || d.owner_id!==user.id) {audit(user.id,'permission.grant','document',null,'denied','not_owner_or_not_found',requestId);return json(res,404,{error:'Document not found'});}
           const input=await readJson(req), target=q('SELECT id,role FROM users WHERE email=? AND disabled=0',String(input.email||'').trim().toLowerCase()); const permission=input.permission;
           const expiresAt=input.expiresAt ? String(input.expiresAt) : null;
-          if(expiresAt && (!Number.isFinite(Date.parse(expiresAt)) || Date.parse(expiresAt)<=Date.now())) return json(res,400,{error:'Expiry must be a future date and time.'});
+          if(expiresAt && (!Number.isFinite(Date.parse(expiresAt)) || Date.parse(expiresAt)<=Date.now())) { audit(user.id,'permission.grant','document',id,'denied','invalid_grant_expiry',requestId); return json(res,400,{error:'Expiry must be a future date and time.'}); }
           if(!target||target.id===user.id||!['Read','Download','Edit'].includes(permission)) { audit(user.id,'permission.grant','document',id,'denied','invalid_target_or_permission',requestId); return json(res,400,{error:'Choose an existing user and Read, Download, or Edit permission.'}); }
           const prior=q('SELECT * FROM grants WHERE document_id=? AND user_id=?',id,target.id);
           if(prior) run('UPDATE grants SET permission=?,granted_by=?,created_at=?,revoked_at=NULL,expires_at=? WHERE document_id=? AND user_id=?',permission,user.id,now(),expiresAt,id,target.id);
@@ -351,9 +351,9 @@ async function route(req,res) {
         const input=await readJson(req), permission=input.permission;
         if(user.role!=='Viewer') { audit(user.id,'access_request.create','document',null,'denied','viewer_role_required',requestId); return json(res,403,{error:'Only Viewer accounts can request document access.'}); }
         if(!d || d.visibility!=='Public' || d.owner_id===user.id) { audit(user.id,'access_request.create','document',null,'denied','not_requestable_or_self_request',requestId); return json(res,404,{error:'Public document not found'}); }
-        if(!['Read','Download'].includes(permission)) return json(res,400,{error:'Permission must be Read or Download.'});
+        if(!['Read','Download'].includes(permission)) { audit(user.id,'access_request.create','document',id,'denied','invalid_requested_permission',requestId); return json(res,400,{error:'Permission must be Read or Download.'}); }
         const existing=q("SELECT id FROM access_requests WHERE document_id=? AND requester_id=? AND permission=? AND status='Pending'",d.id,user.id,permission);
-        if(existing) return json(res,409,{error:'You already have a pending request for this permission.'});
+        if(existing) { audit(user.id,'access_request.create','document',id,'denied','duplicate_pending_request',requestId); return json(res,409,{error:'You already have a pending request for this permission.'}); }
         const requestIdValue=randomUUID();
         run("INSERT INTO access_requests(id,document_id,requester_id,permission,status,created_at) VALUES(?,?,?,?,'Pending',?)",requestIdValue,d.id,user.id,permission,now());
         audit(user.id,'access_request.create','document',d.id,'success',permission,requestId);
@@ -367,7 +367,7 @@ async function route(req,res) {
       const accessRequestMatch=path.match(/^\/api\/access-requests\/([0-9a-f-]+)$/i);
       if(accessRequestMatch && method==='PATCH') {
         const input=await readJson(req), status=input.status, expiresAt=input.expiresAt ? String(input.expiresAt) : null;
-        if(!['Approved','Rejected'].includes(status)) return json(res,400,{error:'Status must be Approved or Rejected.'});
+        if(!['Approved','Rejected'].includes(status)) { audit(user.id,'access_request.decide','request',null,'denied','invalid_decision_status',requestId); return json(res,400,{error:'Status must be Approved or Rejected.'}); }
         if(expiresAt && (!Number.isFinite(Date.parse(expiresAt)) || Date.parse(expiresAt)<=Date.now())) return json(res,400,{error:'Expiry must be a future date and time.'});
         const request= q("SELECT r.*,d.owner_id,d.deleted_at FROM access_requests r JOIN documents d ON d.id=r.document_id WHERE r.id=?",accessRequestMatch[1]);
         if(!request || request.owner_id!==user.id || request.deleted_at || request.status!=='Pending') { audit(user.id,'access_request.decide','request',null,'denied','not_owner_or_not_pending',requestId); return json(res,404,{error:'Pending request not found'}); }
@@ -388,18 +388,18 @@ async function route(req,res) {
         if(user.role!=='Administrator') { audit(user.id,'user.account.update','user',userMatch[1],'denied','administrator_role_required',requestId); return json(res,403,{error:'Administrator role required'}); }
         const targetId=userMatch[1], input=await readJson(req);
         const target=q('SELECT id,email,role,disabled,approval_status FROM users WHERE id=?',targetId);
-        if(!target) return json(res,404,{error:'User not found'});
+        if(!target) { audit(user.id,'user.account.update','user',targetId,'denied','target_user_not_found',requestId); return json(res,404,{error:'User not found'}); }
         if(input.approvalStatus!==undefined) {
-          if(target.role!=='DocumentOwner') return json(res,400,{error:'Only Document Owner accounts require approval.'});
-          if(!['Approved','Rejected'].includes(input.approvalStatus)) return json(res,400,{error:'Approval status must be Approved or Rejected.'});
+          if(target.role!=='DocumentOwner') { audit(user.id,'owner.account.review','user',targetId,'denied','target_is_not_document_owner',requestId); return json(res,400,{error:'Only Document Owner accounts require approval.'}); }
+          if(!['Approved','Rejected'].includes(input.approvalStatus)) { audit(user.id,'owner.account.review','user',targetId,'denied','invalid_approval_status',requestId); return json(res,400,{error:'Approval status must be Approved or Rejected.'}); }
           run('UPDATE users SET approval_status=? WHERE id=?',input.approvalStatus,targetId);
           if(input.approvalStatus!=='Approved') run('DELETE FROM sessions WHERE user_id=?',targetId);
           audit(user.id,'owner.account.review','user',targetId,'success',input.approvalStatus.toLowerCase(),requestId);
           if(target.approval_status!==input.approvalStatus) createNotification(targetId,'owner-account-status','Document Owner account '+input.approvalStatus.toLowerCase(),input.approvalStatus==='Approved'?'Your Document Owner account has been approved. You can now sign in.':'Your Document Owner account request was rejected.');
           return json(res,200,{ok:true,approvalStatus:input.approvalStatus});
         }
-        if(typeof input.disabled!=='boolean') return json(res,400,{error:'Provide a disabled boolean or an owner approvalStatus.'});
-        if(targetId===user.id && input.disabled) return json(res,400,{error:'You cannot disable your own account.'});
+        if(typeof input.disabled!=='boolean') { audit(user.id,'user.account.update','user',targetId,'denied','invalid_account_update',requestId); return json(res,400,{error:'Provide a disabled boolean or an owner approvalStatus.'}); }
+        if(targetId===user.id && input.disabled) { audit(user.id,'user.disable','user',targetId,'denied','self_disable_rejected',requestId); return json(res,400,{error:'You cannot disable your own account.'}); }
         run('UPDATE users SET disabled=? WHERE id=?',input.disabled?1:0,targetId);
         if(input.disabled) run('DELETE FROM sessions WHERE user_id=?',targetId);
         audit(user.id,input.disabled?'user.disable':'user.enable','user',targetId,'success',input.disabled?'account_disabled_and_sessions_revoked':'account_enabled',requestId);
