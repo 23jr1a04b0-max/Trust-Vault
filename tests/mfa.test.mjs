@@ -1,11 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { base32Encode, base32Decode, generateTotpSecret, encryptTotpSecret, decryptTotpSecret, verifyTotp } from '../mfa.mjs';
+import { base32Encode, base32Decode, generateTotpSecret, generateTotpCode, encryptTotpSecret, decryptTotpSecret, verifyTotp } from '../mfa.mjs';
 
 test('base32 round-trips generated authenticator secrets', () => {
   const secret = generateTotpSecret();
   assert.equal(base32Encode(base32Decode(secret)),secret);
-  assert.equal(secret.length,32);
+  assert.equal(secret.length,32);\n  const code=generateTotpCode(secret,59_000);\n  assert.equal(verifyTotp(secret,code,{now:59_000,window:0}),1);
 });
 
 test('TOTP matches the RFC 6238 SHA-1 test vector at 59 seconds', () => {
