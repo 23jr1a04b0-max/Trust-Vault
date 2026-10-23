@@ -8,7 +8,7 @@ const root = process.cwd();
 const temp = mkdtempSync(join(tmpdir(), 'trustvault-mutation-'));
 try {
   const paths = [
-    'server.mjs', 'clamav.mjs', 'audit-sink.mjs', 'db/schema.sql', 'public/index.html', 'public/app.css',
+    'server.mjs', 'clamav.mjs', 'audit-sink.mjs', 'mfa.mjs', 'db/schema.sql', 'public/index.html', 'public/app.css',
     'public/app.js', 'public/404.html', 'tests/integration.test.mjs'
   ];
   for (const path of paths) {
