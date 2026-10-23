@@ -46,11 +46,13 @@ test('production administrators must enroll TOTP and use non-replayed codes',asy
   response=await api('/api/users',{});
   assert.equal(response.status,403,'production admin tools must be blocked before MFA enrollment');
   response=await api('/api/admin/mfa/enroll',{});
-  assert.equal(response.status,200,await response.text());
-  const enrollment=await response.json();
+  let responseText=await response.text();
+  assert.equal(response.status,200,responseText);
+  const enrollment=JSON.parse(responseText);
   const currentCode=generateTotpCode(enrollment.secret);
   response=await api('/api/admin/mfa/verify',{code:currentCode});
-  assert.equal(response.status,200,await response.text());
+  responseText=await response.text();
+  assert.equal(response.status,200,responseText);
   response=await api('/api/users',{});
   assert.equal(response.status,200,'admin tools become available after MFA is enabled');
   response=await fetch(base+'/api/auth/logout',{method:'POST',headers:{origin:trustedOrigin,cookie,'x-csrf-token':loginData.csrfToken,'content-type':'application/json'},body:'{}'});
@@ -59,7 +61,8 @@ test('production administrators must enroll TOTP and use non-replayed codes',asy
   assert.equal(response.status,401,'enabled MFA must be required at login');
   const futureCode=generateTotpCode(enrollment.secret,Date.now()+30_000);
   response=await login(futureCode);
-  assert.equal(response.status,200,await response.text(),'a valid unused TOTP code must allow login');
+  responseText=await response.text();
+  assert.equal(response.status,200,responseText,'a valid unused TOTP code must allow login');
   response=await login(futureCode);
   assert.equal(response.status,401,'a TOTP time step must not be replayable');
 });
