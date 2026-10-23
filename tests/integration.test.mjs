@@ -118,6 +118,14 @@ test('HTTP authorization: private isolation, Read versus Download, approval and 
   assert.equal(adminApprovesOwner.status,200,await adminApprovesOwner.text());
   const approvedOwnerLogin=await fetch(base+'/api/auth/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email:'new-owner@trustvault.test',password:'Long-Enough-Test-Pass-123',role:'DocumentOwner'})});
   assert.equal(approvedOwnerLogin.status,200,'approved owner should be allowed to sign in');
+  const approvedOwnerCookie=approvedOwnerLogin.headers.get('set-cookie');
+  assert.ok(approvedOwnerCookie,'approved owner should receive a session');
+  const ownerSessionDb=new DatabaseSync(dbPath);
+  ownerSessionDb.prepare("UPDATE users SET approval_status='Rejected' WHERE id=?").run(signupOwnerData.userId);
+  const revokedApprovalSession=await fetch(base+'/api/documents',{headers:{cookie:approvedOwnerCookie.split(';')[0]}});
+  assert.equal(revokedApprovalSession.status,401,'a previously approved owner session must be blocked if administrator approval is revoked');
+  ownerSessionDb.prepare("UPDATE users SET approval_status='Approved' WHERE id=?").run(signupOwnerData.userId);
+  ownerSessionDb.close();
   const rejectOwner=await fetch(base+'/api/auth/signup',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({name:'Rejected Owner',email:'rejected-owner@trustvault.test',password:'Long-Enough-Test-Pass-987',role:'DocumentOwner'})});
   const rejectOwnerData=await rejectOwner.json();
   assert.equal(rejectOwner.status,201);
