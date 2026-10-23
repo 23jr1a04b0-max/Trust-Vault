@@ -100,6 +100,14 @@ test('HTTP authorization: private isolation, Read versus Download, approval and 
   assert.equal((await fetch(base + '/api/documents')).status, 401);
 
   const privateDoc = await upload(owner, 'Private', 'private.txt');
+  assert.equal((await request(viewer, '/api/documents/'+privateDoc.id+'/permissions')).status,404,'non-owners must not inspect a document grant list');
+  assert.equal((await request(viewer, '/api/documents/'+privateDoc.id+'/audit')).status,404,'non-owners must not inspect a document audit trail');
+  const unauthorizedGrant=await request(viewer,'/api/documents/'+privateDoc.id+'/permissions',{method:'POST',body:JSON.stringify({email:'admin@trustvault.test',permission:'Download'})});
+  assert.equal(unauthorizedGrant.status,404,'non-owners must not grant document access');
+  const unauthorizedRevoke=await request(viewer,'/api/documents/'+privateDoc.id+'/permissions?userId='+encodeURIComponent(admin.user.id),{method:'DELETE',body:'{}'});
+  assert.equal(unauthorizedRevoke.status,404,'non-owners must not revoke document access');
+  assert.equal((await request(owner,'/api/audit')).status,403,'document owners must not access the global administrator audit feed');
+  assert.equal((await request(viewer,'/api/audit/verify',{method:'POST',body:'{}'})).status,403,'viewers must not verify the global audit chain');
   const binaryBytes = Buffer.from([0x54,0x56,0x00,0x01,0xff,0x80,0x0d,0x0a,0x41]);
   const binaryForm = new FormData();
   binaryForm.append('file', new Blob([binaryBytes], { type: 'text/plain' }), 'binary.txt');
