@@ -111,7 +111,7 @@ test('HTTP authorization: private isolation, Read versus Download, approval and 
   const duplicateSignup=await fetch(base+'/api/auth/signup',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({name:'Duplicate',email:'new-owner@trustvault.test',password:'Long-Enough-Test-Pass-123',role:'DocumentOwner'})});
   assert.equal(duplicateSignup.status,409,'duplicate email sign-up must be rejected');
   const admin = await login('admin@trustvault.test');
-  const adminNotifications=(await request(admin,'/api/notifications')).json ? await (await request(admin,'/api/notifications')).json() : null;
+  const adminNotifications=await (await request(admin,'/api/notifications')).json();
   assert.ok(adminNotifications.notifications.some(n=>n.type==='owner-registration'),'administrators should receive owner-registration notifications');
   const viewerApprovalAttempt=await request(viewer,'/api/users/'+signupOwnerData.userId,{method:'PATCH',body:JSON.stringify({approvalStatus:'Approved'})});
   assert.equal(viewerApprovalAttempt.status,403,'viewers must not approve owner registrations');
@@ -126,7 +126,7 @@ test('HTTP authorization: private isolation, Read versus Download, approval and 
   assert.ok(approvedOwnerCookie,'approved owner should receive a session');
   const approvedOwnerLoginData=await approvedOwnerLogin.json();
   const approvedOwnerSession={cookie:approvedOwnerCookie.split(';')[0],csrf:approvedOwnerLoginData.csrfToken,user:approvedOwnerLoginData.user};
-  const ownerNotifications=(await request(approvedOwnerSession,'/api/notifications')).json ? await (await request(approvedOwnerSession,'/api/notifications')).json() : null;
+  const ownerNotifications=await (await request(approvedOwnerSession,'/api/notifications')).json();
   assert.ok(ownerNotifications.notifications.some(n=>n.type==='owner-account-status' && /approved/i.test(n.title)),'owner should receive in-app approval notification');
   const ownerSessionDb=new DatabaseSync(join(temp,'data','trustvault.sqlite'));
   ownerSessionDb.prepare("UPDATE users SET approval_status='Rejected' WHERE id=?").run(signupOwnerData.userId);
