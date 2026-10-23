@@ -5,9 +5,15 @@ on:
   push:
     branches: ["main"]
   pull_request:
+permissions:
+  contents: read
+concurrency:
+  group: trustvault-check-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 jobs:
   check:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
