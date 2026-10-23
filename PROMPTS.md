@@ -84,3 +84,11 @@ This file is intentionally honest about the missing public commit links and sing
 - **Documentation:** Added Docker Compose setup and reverse-proxy guidance, including audit-key generation, exact trusted-origin configuration, persistent volume backups, and the warning not to expose port 3000 directly.
 - **Remaining limitations:** No live deployment or public URL has been created. A container smoke test does not validate the target host, TLS reverse proxy, backups, monitoring, or independent security review.
 - **Commit links:** [Docker image and CI smoke test](https://github.com/23jr1a04b0-max/Trust-Vault/commit/18bd1a355ca06bdb6e097f1410fd53e77cd97858), [deployment instructions](https://github.com/23jr1a04b0-max/Trust-Vault/commit/f714417bf83e283de0be36e95dc23a505093b0ac).
+
+## Entry 9: 2026-10-23, verify audit tamper detection in the HTTP integration suite
+
+- **Prompt or faithful summary:** Continue improving the TrustVault feature branch, add focused security checks, and verify them with the repository CI.
+- **Generated result:** Extended the integration suite to alter a stored audit event directly in the disposable test database and confirm that the administrator audit verification endpoint returns a failed verification. Also added an explicit assertion that an administrator cannot disable their own account.
+- **Verification:** GitHub Actions passed `npm run check`, including the HTTP integration tests and authorization mutation test, and passed the Docker build/health-check step.
+- **Remaining gap:** Detecting event modification does not prevent privileged host compromise or reliably detect deletion of the tail of the chain. External immutable checkpoints and broader route-by-route testing remain necessary.
+- **Commit:** [Audit tampering test](https://github.com/23jr1a04b0-max/Trust-Vault/commit/9df2014cdf0181e593bb797219ac6094e0be5866).
