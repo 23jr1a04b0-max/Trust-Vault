@@ -20,6 +20,8 @@ jobs:
         with:
           node-version: "22"
       - run: npm run check
+      - name: Validate backup script syntax
+        run: bash -n scripts/backup.sh
       - name: Build and smoke-test production container
         shell: bash
         run: |
