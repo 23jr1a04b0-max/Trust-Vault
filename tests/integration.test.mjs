@@ -76,6 +76,7 @@ test('HTTP authorization: private isolation, Read versus Download, approval and 
   }
   const owner = await login('owner@trustvault.test');
   const viewer = await login('viewer@trustvault.test');
+  const admin = await login('admin@trustvault.test');
   assert.equal((await fetch(base + '/api/documents')).status, 401);
 
   const privateDoc = await upload(owner, 'Private', 'private.txt');
@@ -88,11 +89,21 @@ test('HTTP authorization: private isolation, Read versus Download, approval and 
   assert.equal(share.status, 201, await share.text());
   listing = await (await request(viewer, '/api/documents')).json();
   assert.equal(listing.documents.find(doc => doc.id === privateDoc.id)?.accessPermission, 'Read');
+  const readEdit = await request(viewer, `/api/documents/${privateDoc.id}`, { method: 'PATCH', body: JSON.stringify({ name: 'blocked.txt', category: 'Tests' }) });
+  assert.equal(readEdit.status, 404, 'Read permission must not allow metadata editing');
+  const noCsrf = await fetch(base + `/api/documents/${privateDoc.id}/permissions`, { method: 'POST', headers: { cookie: owner.cookie, 'content-type': 'application/json' }, body: JSON.stringify({ email: 'viewer@trustvault.test', permission: 'Read' }) });
+  assert.equal(noCsrf.status, 403, 'state-changing requests must require a CSRF token');
   let content = await request(viewer, `/api/documents/${privateDoc.id}/content`);
   assert.equal(content.status, 200);
   assert.match(await content.text(), /TrustVault test document/);
   let download = await request(viewer, `/api/documents/${privateDoc.id}/download`);
   assert.equal(download.status, 404, 'Read permission must not allow downloading');
+  share = await request(owner, `/api/documents/${privateDoc.id}/permissions`, {
+    method: 'POST', body: JSON.stringify({ email: 'viewer@trustvault.test', permission: 'Edit' })
+  });
+  assert.equal(share.status, 201, await share.text());
+  const edit = await request(viewer, `/api/documents/${privateDoc.id}`, { method: 'PATCH', body: JSON.stringify({ name: 'edited.txt', category: 'Reviewed' }) });
+  assert.equal(edit.status, 200, await edit.text(), 'Edit permission should allow metadata updates');
 
   const grants = await (await request(owner, `/api/documents/${privateDoc.id}/permissions`)).json();
   const grant = grants.permissions.find(p => p.email === 'viewer@trustvault.test' && !p.revoked_at);
@@ -100,6 +111,9 @@ test('HTTP authorization: private isolation, Read versus Download, approval and 
   const revoke = await request(owner, `/api/documents/${privateDoc.id}/permissions?userId=${encodeURIComponent(grant.user_id)}`, { method: 'DELETE' });
   assert.equal(revoke.status, 200);
   assert.equal((await request(viewer, `/api/documents/${privateDoc.id}/content`)).status, 404, 'revocation must block the next content request');
+  const auditCheck = await request(admin, '/api/audit/verify', { method: 'POST', body: '{}' });
+  assert.equal(auditCheck.status, 200, await auditCheck.text());
+  assert.equal((await auditCheck.json()).valid, true, 'audit chain should verify after tested operations');
 
   const publicDoc = await upload(owner, 'Public', 'public.txt');
   listing = await (await request(viewer, '/api/documents')).json();
