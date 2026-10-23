@@ -75,3 +75,12 @@ This file is intentionally honest about the missing public commit links and sing
 - **Tests added or expanded:** Verify expired grant denial, owner-only deletion, private/self access-request denial, non-admin account-list denial, login rate limiting, disabled-session invalidation, logout, audit-chain consistency, and production Origin enforcement with Secure cookies in a production-mode HTTP server.
 - **Verification:** GitHub Actions passed the production Origin runtime test and the combined repository check after these changes. Remaining gaps are listed in README.md and THREATS.md; passing CI is not a security certification.
 - **Commit links:** [Production Origin runtime test](https://github.com/23jr1a04b0-max/Trust-Vault/commit/cb8f9c16bf6545be536aa98ba4475fa798a745c9), [document and admin controls](https://github.com/23jr1a04b0-max/Trust-Vault/commit/0677473a312c4174d4f7794663296c4393b5f548), [upload parser hardening](https://github.com/23jr1a04b0-max/Trust-Vault/commit/c8fe8a3e095fb78ad46aeeb7fe153af68c45e4b6).
+
+## Entry 8: 2026-10-23, package the review build for repeatable container deployment
+
+- **Prompt or faithful summary:** Continue making the current TrustVault feature branch usable without waiting for another reply, while keeping deployment and security claims honest.
+- **Generated result:** Added a non-root Node.js Docker image, a .dockerignore file, and a Compose deployment with persistent data/private-file volumes, loopback-only published port, read-only container filesystem, dropped capabilities, and a health check.
+- **CI:** Extended GitHub Actions to build the image and start it with production configuration, then request the health endpoint. The image build and smoke test passed.
+- **Documentation:** Added Docker Compose setup and reverse-proxy guidance, including audit-key generation, exact trusted-origin configuration, persistent volume backups, and the warning not to expose port 3000 directly.
+- **Remaining limitations:** No live deployment or public URL has been created. A container smoke test does not validate the target host, TLS reverse proxy, backups, monitoring, or independent security review.
+- **Commit links:** [Docker image and CI smoke test](https://github.com/23jr1a04b0-max/Trust-Vault/commit/18bd1a355ca06bdb6e097f1410fd53e77cd97858), [deployment instructions](https://github.com/23jr1a04b0-max/Trust-Vault/commit/f714417bf83e283de0be36e95dc23a505093b0ac).
