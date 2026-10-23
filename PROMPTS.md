@@ -146,3 +146,10 @@ This file is intentionally honest about the missing public commit links and sing
 - **Generated result:** Updated current-session resolution to reload `approval_status` from the database and invalidate a session when a Document Owner is not currently Approved. Added integration checks for approval revocation after login and for a Viewer being unable to approve an owner account.
 - **Verification:** Latest GitHub Actions runs are queued or in progress; do not mark these newest tests as passed until a run on the latest commit completes successfully.
 - **Remaining gaps:** Review race conditions for requests in progress during an approval change, administrator workflow UX, email notifications, email verification, password recovery, and deployment hardening.
+
+## Entry 17: 2026-10-23, role-based in-app notification center
+
+- **Prompt or faithful summary:** Add role-specific notifications for owner account decisions and document-access request updates, with a bell beside the profile icon. The unread number should clear to zero after the user views notifications; no email or pop-up notification system is wanted.
+- **Generated result:** Added persistent SQLite notifications and authenticated recipient-scoped endpoints to list notifications and mark them read. New owner sign-ups notify administrators; owner account decisions notify the owner; public-document access requests notify the owner; and approval/rejection decisions notify the viewer. Added a top-right bell before the profile chip, unread badge, notification panel, mark-as-read behavior, periodic refresh, responsive styling, and integration/source checks. No email provider or email delivery was added.
+- **Verification:** Automated checks are being run against the feature branch. Treat this as implemented but not verified until the latest GitHub Actions run succeeds.
+- **Remaining gaps:** Browser-level usability/accessibility review and testing of notification refresh across multiple simultaneous sessions remain. The bell uses periodic refresh rather than push notifications.
