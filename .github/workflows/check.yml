@@ -33,6 +33,7 @@ jobs:
             --env TRUSTED_ORIGINS=https://vault.example.test \
             --env AUDIT_SINK_URL=https://audit.example.test/ingest \
             --env AUDIT_SINK_TOKEN=test-only-ci-audit-sink-token-at-least-32-bytes \
+            --env MFA_ENCRYPTION_KEY=abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789 \
             trustvault:ci
           for attempt in $(seq 1 30); do
             if node -e "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"; then
