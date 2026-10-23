@@ -1,7 +1,9 @@
 name: TrustVault checks
 on:
+  # Pull requests validate feature branches; push runs are reserved for main
+  # to avoid duplicate checks for each commit on an open pull request.
   push:
-    branches: ["**"]
+    branches: ["main"]
   pull_request:
 jobs:
   check:
