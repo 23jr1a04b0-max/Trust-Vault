@@ -1,32 +1,48 @@
 # Deployment notes (Vercel + Render)
 
-TrustVault's UI is hosted by Vercel. Its Node.js API, SQLite database, uploaded files, and ClamAV scanning run on Render. Keep the API and data storage on the backend; do not move SQLite or private uploads into Vercel Functions.
+TrustVault's UI is hosted by Vercel. Its Node.js API, SQLite database, and private uploads run on Render. Keep the API and data storage on the backend; do not move SQLite or private uploads into Vercel Functions.
 
-## 1. Render backend
+## Free demo deployment
 
-1. In Render, create a Blueprint from this repository and choose the `security-hardening-followup` branch.
-2. Review the services before applying. The blueprint defines a private ClamAV image service and a Docker web service.
-3. Configure these backend environment variables:
-   - `TRUSTED_ORIGINS`: the exact Vercel frontend origin, e.g. `https://your-project.vercel.app` (no trailing slash). Update it if the Vercel project URL changes.
-   - `AUDIT_SINK_URL` and `AUDIT_SINK_TOKEN`: a reachable, compatible TrustVault audit-sink receiver and its token. The production server intentionally refuses to start without these.
-4. Keep the persistent disk mounted at `/app/data`. SQLite, audit checkpoints, and the audit key must survive restarts. Uploaded documents live in `/app/private-files`; configure persistent storage for that directory too before using persistent uploads.
-5. Confirm `/api/health` returns `{"ok":true}` before connecting the frontend.
+This repository supports an explicit limited demo mode for a no-cost demonstration where no independent audit-sink receiver is configured. This mode does **not** provide independent audit anchoring. The app still maintains its local audit log, but Render free services use ephemeral storage: the database, local audit key/checkpoints, and uploaded files can be lost on restart, redeploy, or spin-down.
 
-The audit sink is a separate integration and is not included in this repository's current deployment blueprint. Do not invent a sink URL or disable the production checks just to make the service start.
+Do not use real, confidential, or important documents. Use synthetic demo accounts and test files only. Do not present this as a production secure document service.
 
-## 2. Vercel frontend
+### Render backend
 
-The `vercel.json` rewrite proxies `/api/*` to the Render backend, so browser requests and session cookies stay on the Vercel origin. After Render assigns the actual backend URL, update the rewrite destination in `vercel.json` if it differs from `https://trustvault-backend.onrender.com`.
+Create a **Web Service** from the `security-hardening-followup` branch. Choose Docker and `./Dockerfile`; do not apply the paid `render.yaml` Blueprint.
+
+Set these environment variables in Render:
+
+- `NODE_ENV` = `production`
+- `PORT` = `3000`
+- `TRUSTVAULT_DEMO_MODE` = `true`
+- `TRUSTED_ORIGINS` = the exact Vercel frontend origin, e.g. `https://your-project.vercel.app` (no trailing slash; update it if the URL changes)
+- `AUDIT_HMAC_KEY` = a random secret of at least 32 bytes
+- `MFA_ENCRYPTION_KEY` = exactly 64 hexadecimal characters (32 bytes)
+- `DATA_DIR` = `/tmp/trustvault-data`
+- `PRIVATE_FILES_DIR` = `/tmp/trustvault-private-files`
+
+Generate secrets locally or with a password manager. Never commit them to Git or share them in chat.
+
+The application requires ClamAV to scan production uploads and fails closed if the scanner is unavailable. This free demo configuration does not provision a ClamAV service, so uploads will return a scanner-unavailable response until a scanner is configured. Do not disable the scan or upload confidential files to work around this limitation. Login, authorization, local audit logging, and other routes can be tested once the service is configured and starts successfully.
+
+Set Render's health check path to `/api/health`. Confirm the response indicates `demoMode: true` and `independentAuditAnchoring: false`.
+
+## Vercel frontend
+
+The `vercel.json` rewrite proxies `/api/*` to `https://trustvault-backend.onrender.com/api/*`. If Render assigns a different backend URL, update this destination in `vercel.json` on the same branch and redeploy Vercel.
 
 Import the same GitHub repository into Vercel and use the `security-hardening-followup` branch for a preview. No build command is required; the frontend is static HTML/CSS/JS at the repository root.
 
-## 3. Validation
+## Validation
 
 - Open the Vercel preview and confirm the page loads.
-- Open `/api/health` on the frontend domain and confirm the JSON health response.
-- Test sign-up/sign-in and the document flows with synthetic files only.
-- Do not upload real or confidential documents to a demo deployment.
+- Open `/api/health` on the frontend domain and confirm the health JSON response.
+- Test sign-up/sign-in with synthetic accounts.
+- Treat upload attempts that return scanner-unavailable as an expected limitation until ClamAV is provided.
+- Do not upload real or confidential documents.
 
-## Important limitations
+## Full deployment requirements
 
-This deployment needs the audit-sink receiver to be fully runnable in production. The current blueprint also persists the database under `/app/data`; configure an additional persistent disk for `/app/private-files` before expecting uploaded documents to survive service restarts or redeploys. Never put credentials in Git.
+A full production deployment needs persistent storage for the SQLite database and private files, a reachable ClamAV scanner, and a compatible external audit-sink receiver/token. The free Render demo does not provide those pieces. Do not invent a sink URL or bypass security checks to make the service appear fully operational.
