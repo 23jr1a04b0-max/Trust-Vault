@@ -56,7 +56,7 @@ test('HTTP authorization: private isolation, Read versus Download, approval and 
   const base = `http://127.0.0.1:${port}`;
   const child = spawn(process.execPath, ['server.mjs'], {
     cwd: temp,
-    env: { ...process.env, PORT: String(port), NODE_ENV: 'development', SEED_DEMO_USERS: 'true', DEMO_SEED_PASSWORD: password },
+    env: { ...process.env, PORT: String(port), NODE_ENV: 'development', SEED_DEMO_USERS: 'true', DEMO_SEED_PASSWORD: password, MAX_UPLOAD_BYTES:'1024' },
     stdio: ['ignore','pipe','pipe']
   });
   let output = '';
@@ -111,6 +111,16 @@ test('HTTP authorization: private isolation, Read versus Download, approval and 
   const boundary = '----trustvault-malformed-test';
   const malformed = await request(owner,'/api/documents',{method:'POST',headers:{'content-type':`multipart/form-data; boundary=${boundary}`},body:`--${boundary}\\r\\nContent-Disposition: form-data; name="file"; filename="x.txt"\\r\\nContent-Type: text/plain\\r\\n\\r\\nmissing closing boundary`});
   assert.equal(malformed.status,400,'malformed multipart must be rejected cleanly');
+  const wrongMimeForm = new FormData();
+  wrongMimeForm.append('file',new Blob(['not a trusted text upload'],{type:'application/octet-stream'}),'spoof.txt');
+  wrongMimeForm.append('category','Tests');wrongMimeForm.append('visibility','Private');
+  const wrongMime = await request(owner,'/api/documents',{method:'POST',body:wrongMimeForm});
+  assert.equal(wrongMime.status,400,'declared MIME type must match the allowed extension');
+  const oversizedForm = new FormData();
+  oversizedForm.append('file',new Blob(['x'.repeat(2048)],{type:'text/plain'}),'large.txt');
+  oversizedForm.append('category','Tests');oversizedForm.append('visibility','Private');
+  const oversized = await request(owner,'/api/documents',{method:'POST',body:oversizedForm});
+  assert.equal(oversized.status,400,'files above configured size limit must be rejected');
   let listing = await (await request(viewer, '/api/documents')).json();
   assert.ok(!listing.documents.some(doc => doc.id === privateDoc.id), 'private document metadata must not be discoverable');
 
