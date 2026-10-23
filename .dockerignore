@@ -1,0 +1,14 @@
+.git
+.github
+node_modules
+coverage
+data
+private-files
+tests
+docs
+.env
+.env.*
+!.env.example
+*.sqlite
+*.sqlite-*
+npm-debug.log*
