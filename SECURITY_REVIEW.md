@@ -56,3 +56,11 @@ These changes do not close the deployment blockers above. No live domain/proxy v
 - A local audit checkpoint records the latest sequence/hash and is checked during verification. The checkpoint is deliberately not reset when its anchored database event disappears, so database-only tail deletion remains detectable. This checkpoint is stored on the same host and is **not** an external immutable anchor; host/key compromise can defeat it.
 - Added an integration regression test that deletes the latest audit event and expects verification to report a checkpoint mismatch.
 - The changes are on `security-hardening-followup`; no changes have been made to `main`. Automated CI must pass before these changes should be considered validated.
+
+
+## Additional review notes (2026-10-23)
+
+- Both inline content and download streams now recheck current authorization as chunks pass through the response pipeline. If a grant is revoked or a document is deleted during transfer, the stream is aborted and a denied event is attempted. Bytes already sent cannot be recalled, and a timing window remains between checks and delivery.
+- Local audit checkpoint files are excluded from Git. The checkpoint detects database-only tail deletion when the checkpoint itself remains intact, but it is on the same host and does not protect against host-level compromise or coordinated deletion of both database and checkpoint.
+- Denied access-request expiry events now target the actual access-request ID rather than a request-correlation ID.
+- Latest commit: `ea01bd79354766bf89ce43f97de2994f9f357349`. The workflow runs for this revision were still in progress at the time of this note. Do not treat the latest revision as validated until both the full check and container smoke test finish successfully.
