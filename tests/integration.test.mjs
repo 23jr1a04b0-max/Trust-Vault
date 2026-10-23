@@ -159,7 +159,7 @@ test('HTTP authorization: private isolation, Read versus Download, approval and 
     SELECT ?,?,?, 'DocumentOwner',password_hash,salt,'Approved',? FROM users WHERE email=?`)
     .run(secondOwnerId,'second-owner@trustvault.test','Second Owner',new Date().toISOString(),'owner@trustvault.test');
   ownerSeedDb.close();
-  const secondOwner=await login('second-owner@trustvault.test');
+  const secondOwner=await login('second-owner@trustvault.test','DocumentOwner');
   const secondOwnerDoc=await upload(secondOwner,'Private','second-owner-private.txt','second owner secret');
   assert.equal((await request(owner,'/api/documents/'+secondOwnerDoc.id+'/content')).status,404,'one owner must not read another owner\'s private document without a grant');
   assert.equal((await request(owner,'/api/documents/'+secondOwnerDoc.id+'/download')).status,404,'one owner must not download another owner\'s private document without a grant');
