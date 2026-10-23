@@ -6,6 +6,7 @@ import { promisify } from 'node:util';
 import { DatabaseSync } from 'node:sqlite';
 import { pipeline } from 'node:stream/promises';
 import { Transform } from 'node:stream';
+import { scanWithClamAV } from './clamav.mjs';
 
 const scrypt = promisify(scryptCb);
 const ROOT = process.cwd();
@@ -310,6 +311,16 @@ async function route(req,res) {
         const parsed=parseMultipart(raw,boundary); const file=parsed.file; if(!file) { audit(user.id,'document.upload','collection',null,'denied','missing_upload_file',requestId); return json(res,400,{error:'Choose a file to upload'}); }
         const original=basename(file.filename.replace(/\\/g,'/')).replace(/[\x00-\x1f\x7f]/g,'').trim(); const ext=extname(original).toLowerCase();
         if(!original||file.filename.includes('/')||file.filename.includes(String.fromCharCode(92))||original.length>180||!allowed.has(ext)||file.data.length>MAX_UPLOAD||!validSignature(ext,file.data)||!file.contentType||file.contentType.toLowerCase()!==allowed.get(ext)) { audit(user.id,'document.upload','document',null,'denied','upload_validation_failed',requestId); return json(res,400,{error:'Unsupported, malformed, or oversized file. Allowed: PDF, TXT, PNG, JPG.'}); }
+        // Production uploads must pass malware scanning before entering private storage.
+        // Scanner outage, timeout, protocol error, or malware finding fails closed.
+        if(process.env.NODE_ENV==='production') {
+          try { await scanWithClamAV(file.data); }
+          catch(scanError) {
+            const infected=scanError.code==='MALWARE_DETECTED';
+            audit(user.id,'document.upload.scan','document',null,'denied',infected?'malware_detected':'malware_scanner_unavailable',requestId);
+            return json(res,infected?400:503,{error:infected?'The uploaded file was rejected by malware scanning.':'Malware scanning is temporarily unavailable. Please try again later.'});
+          }
+        }
         const key=randomBytes(32).toString('hex'); const id=randomUUID(); const category=String(parsed.fields.category||'General').slice(0,80); const visibility=['Public','Private'].includes(parsed.fields.visibility)?parsed.fields.visibility:'Private';
         await new Promise((resolvePromise,reject)=>{const s=createWriteStream(join(PRIVATE,key),{flags:'wx',mode:0o600});s.on('error',reject);s.end(file.data,resolvePromise)});
         try { run('INSERT INTO documents(id,owner_id,name,category,storage_key,size,mime,created_at,visibility) VALUES(?,?,?,?,?,?,?,?,?)',id,user.id,original,category,key,file.data.length,allowed.get(ext),now(),visibility); audit(user.id,'document.upload','document',id,'success','upload_complete',requestId); }
