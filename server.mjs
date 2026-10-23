@@ -86,6 +86,7 @@ if (process.env.NODE_ENV === 'production') {
 const auditMac = value => createHmac('sha256', auditKey).update(value).digest('hex');
 const AUDIT_SINK_TOKEN=process.env.AUDIT_SINK_TOKEN||'';
 const AUDIT_SINK_URL=validateAuditSinkConfig(process.env.AUDIT_SINK_URL||'',AUDIT_SINK_TOKEN);
+if(process.env.NODE_ENV==='production'&&!AUDIT_SINK_URL) throw new Error('Production requires AUDIT_SINK_URL and AUDIT_SINK_TOKEN for independent audit anchoring.');
 const AUDIT_CHECKPOINT = join(DATA, 'audit-checkpoint.json');
 const AUDIT_CHECKPOINT_MARKER = join(DATA, 'audit-checkpoint.initialized');
 function persistAuditCheckpoint() {
