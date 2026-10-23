@@ -7,6 +7,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { pipeline } from 'node:stream/promises';
 import { Transform } from 'node:stream';
 import { scanWithClamAV } from './clamav.mjs';
+import { validateAuditSinkConfig, sendAuditEvent } from './audit-sink.mjs';
 
 const scrypt = promisify(scryptCb);
 const ROOT = process.cwd();
@@ -50,6 +51,8 @@ DB.exec(`CREATE TABLE IF NOT EXISTS access_requests (
 DB.exec('CREATE INDEX IF NOT EXISTS idx_access_requests_owner_status ON access_requests(document_id,status,created_at)');
 DB.exec(`CREATE TABLE IF NOT EXISTS notifications (id TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,type TEXT NOT NULL,title TEXT NOT NULL,message TEXT NOT NULL,created_at TEXT NOT NULL,read_at TEXT)`);
 DB.exec('CREATE INDEX IF NOT EXISTS idx_notifications_user_unread ON notifications(user_id,read_at,created_at)');
+DB.exec(`CREATE TABLE IF NOT EXISTS audit_outbox (id TEXT PRIMARY KEY,seq INTEGER NOT NULL UNIQUE,payload TEXT NOT NULL,attempts INTEGER NOT NULL DEFAULT 0,next_attempt_at INTEGER NOT NULL DEFAULT 0,created_at TEXT NOT NULL,last_error TEXT)`);
+DB.exec('CREATE INDEX IF NOT EXISTS idx_audit_outbox_delivery ON audit_outbox(next_attempt_at,seq)');
 const accessRequestSql=q("SELECT sql FROM sqlite_master WHERE type='table' AND name='access_requests'")?.sql||'';
 if(/UNIQUE\s*\(\s*document_id\s*,\s*requester_id\s*,\s*permission\s*,\s*status\s*\)/i.test(accessRequestSql)) {
   DB.exec(`BEGIN;
@@ -81,6 +84,8 @@ if (process.env.NODE_ENV === 'production') {
   if (auditKey.length < 32) throw new Error('Local audit HMAC key is invalid.');
 }
 const auditMac = value => createHmac('sha256', auditKey).update(value).digest('hex');
+const AUDIT_SINK_TOKEN=process.env.AUDIT_SINK_TOKEN||'';
+const AUDIT_SINK_URL=validateAuditSinkConfig(process.env.AUDIT_SINK_URL||'',AUDIT_SINK_TOKEN);
 const AUDIT_CHECKPOINT = join(DATA, 'audit-checkpoint.json');
 const AUDIT_CHECKPOINT_MARKER = join(DATA, 'audit-checkpoint.initialized');
 function persistAuditCheckpoint() {
@@ -160,7 +165,34 @@ function audit(actor, action, targetType, targetId, outcome, reason, requestId) 
   const hashVersion=2;
   const hash=auditMac(JSON.stringify({...event,hash_version:hashVersion}));
   run('INSERT INTO audit(id,at,actor_id,action,target_type,target_id,outcome,reason,request_id,prev_hash,hash,hash_version) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)',event.id,event.at,event.actor_id,event.action,event.target_type,event.target_id,event.outcome,event.reason,event.request_id,event.prev_hash,hash,hashVersion);
+  if(AUDIT_SINK_URL) {
+    const seq=q('SELECT seq FROM audit WHERE id=?',event.id).seq;
+    const payload={seq,event,hash,hash_version:hashVersion};
+    run('INSERT INTO audit_outbox(id,seq,payload,created_at) VALUES(?,?,?,?)',event.id,seq,JSON.stringify(payload),now());
+  }
   persistAuditCheckpoint();
+}
+let auditSinkDeliveryRunning=false;
+async function deliverAuditOutbox() {
+  if(!AUDIT_SINK_URL||auditSinkDeliveryRunning) return;
+  auditSinkDeliveryRunning=true;
+  try {
+    const item=q('SELECT id,seq,payload,attempts FROM audit_outbox WHERE next_attempt_at<=? ORDER BY seq LIMIT 1',Date.now());
+    if(!item) return;
+    try {
+      await sendAuditEvent(item.payload,{url:AUDIT_SINK_URL,token:AUDIT_SINK_TOKEN,hmacKey:auditKey});
+      run('DELETE FROM audit_outbox WHERE id=?',item.id);
+    } catch(error) {
+      const attempts=item.attempts+1;
+      const delay=Math.min(60*60*1000,1000*(2**Math.min(attempts,12)));
+      run('UPDATE audit_outbox SET attempts=?,next_attempt_at=?,last_error=? WHERE id=?',attempts,Date.now()+delay,String(error.message||'delivery_failed').slice(0,240),item.id);
+      console.error('audit_sink_delivery_failed',JSON.stringify({seq:item.seq,attempts,error:String(error.message||'delivery_failed').slice(0,120)}));
+    }
+  } finally { auditSinkDeliveryRunning=false; }
+}
+if(AUDIT_SINK_URL) {
+  const auditSinkTimer=setInterval(()=>{deliverAuditOutbox().catch(error=>console.error('audit_sink_worker_failed',String(error.message||error).slice(0,200)));},1000);
+  auditSinkTimer.unref();
 }
 function verifyAudit() {
   const checkpoint=readAuditCheckpoint();
@@ -429,6 +461,13 @@ async function route(req,res) {
         if(input.disabled) run('DELETE FROM sessions WHERE user_id=?',targetId);
         audit(user.id,input.disabled?'user.disable':'user.enable','user',targetId,'success',input.disabled?'account_disabled_and_sessions_revoked':'account_enabled',requestId);
         return json(res,200,{ok:true,disabled:input.disabled});
+      }
+      if(path==='/api/audit/sink-status' && method==='GET') {
+        if(user.role!=='Administrator') { audit(user.id,'audit.sink.status','audit_sink',null,'denied','administrator_role_required',requestId); return json(res,403,{error:'Administrator role required'}); }
+        audit(user.id,'audit.sink.status','audit_sink',null,'success','delivery_status_read',requestId);
+        const pending=q('SELECT COUNT(*) AS count FROM audit_outbox')?.count||0;
+        const oldest=q('SELECT created_at,attempts,last_error FROM audit_outbox ORDER BY seq LIMIT 1');
+        return json(res,200,{configured:Boolean(AUDIT_SINK_URL),pending,oldestPending:oldest?.created_at||null,oldestAttempts:oldest?.attempts||0,lastError:oldest?.last_error||null});
       }
       if(path==='/api/audit/verify' && method==='POST') { if(user.role!=='Administrator') { audit(user.id,'audit.verify','audit',null,'denied','administrator_role_required',requestId); return json(res,403,{error:'Administrator role required'}); } const result=verifyAudit(); audit(user.id,'audit.verify','audit',null,result.valid?'success':'failure',`checked:${result.checked}`,requestId); return json(res,result.valid?200:500,result); }
       if(path==='/api/audit' && method==='GET') { if(user.role!=='Administrator') { audit(user.id,'audit.read','audit',null,'denied','administrator_role_required',requestId); return json(res,403,{error:'Administrator role required'}); } audit(user.id,'audit.read','audit',null,'success','recent_audit_read',requestId); return json(res,200,{events:all('SELECT id,at,actor_id,action,target_type,target_id,outcome,reason,request_id FROM audit ORDER BY seq DESC LIMIT 200')}); }
