@@ -15,6 +15,6 @@ test('Nginx proxy configuration does not trust client-controlled Host forwarding
 test('Compose keeps ClamAV private and publishes TrustVault only to loopback', () => {
   const compose = readFileSync('compose.yaml', 'utf8');
   assert.match(compose, /127\.0\.0\.1:\$\{TRUSTVAULT_PORT:-3000\}:3000/);
-  const clamav = compose.split('  clamav:\n')[1] || '';
+  const clamav = compose.split('\n  clamav:\n')[1] || '';
   assert.doesNotMatch(clamav, /^\s{4}ports:/m);
 });
