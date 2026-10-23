@@ -195,7 +195,7 @@ async function route(req,res) {
         try { run('INSERT INTO users(id,email,display_name,role,password_hash,salt,created_at,approval_status) VALUES(?,?,?,?,?,?,?,?)',id,email,name,role,p.hash,p.salt,now(),approvalStatus); }
         catch(err) { if(String(err.message).includes('UNIQUE')) return json(res,409,{error:'An account with this email already exists. Sign in instead.'}); throw err; }
         audit(id,'auth.signup','user',id,'success','self_service_account_created:'+role+':'+approvalStatus,requestId);
-        return json(res,201,{ok:true,approvalStatus,message:role==='DocumentOwner'?'Owner request submitted. An administrator must approve your account before you can sign in.':'Account created. You can now sign in.'});
+        return json(res,201,{ok:true,userId:id,approvalStatus,message:role==='DocumentOwner'?'Owner request submitted. An administrator must approve your account before you can sign in.':'Account created. You can now sign in.'});
       }
       if(path==='/api/auth/login' && method==='POST') {
         const d=await readJson(req); const email=String(d.email||'').trim().toLowerCase(); const password=String(d.password||''); const requestedRole=String(d.role||'');
