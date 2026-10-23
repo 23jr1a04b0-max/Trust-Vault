@@ -28,7 +28,7 @@ app_stopped=1
 
 # Use the app image only as a read-only archive helper. Exclude the local audit
 # HMAC key; it must be recoverable from the separate secret manager, not this backup.
-docker compose run --rm --no-deps \
+docker compose run --rm --no-deps --user 0:0 \
   -v "$backup_dir:/backup" \
   --entrypoint sh trustvault -ec \
   'tar --exclude=./audit-hmac.key -czf /backup/trustvault-data.tar.gz -C /app/data . &&
