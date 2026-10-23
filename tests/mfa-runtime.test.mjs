@@ -41,10 +41,10 @@ test('production administrators must enroll TOTP and use non-replayed codes',asy
   assert.equal(response.status,200,responseText+' initial admin can sign in only to complete MFA setup');
   let loginData=JSON.parse(responseText);
   let cookie=response.headers.get('set-cookie').split(';')[0];
-  async function api(path,body){
-    return fetch(base+path,{method:'POST',headers:{origin:trustedOrigin,cookie,'x-csrf-token':loginData.csrfToken,'content-type':'application/json'},body:JSON.stringify(body)});
+  async function api(path,body,method='POST'){
+    return fetch(base+path,{method,headers:{origin:trustedOrigin,cookie,'x-csrf-token':loginData.csrfToken,'content-type':'application/json'},body:method==='GET'?undefined:JSON.stringify(body)});
   }
-  response=await api('/api/users',{});
+  response=await api('/api/users',{},'GET');
   assert.equal(response.status,403,'production admin tools must be blocked before MFA enrollment');
   response=await api('/api/admin/mfa/enroll',{password});
   responseText=await response.text();
