@@ -116,3 +116,11 @@ This file is intentionally honest about the missing public commit links and sing
 - **Verification:** The test change is committed to the feature branch. Its current GitHub Actions run is linked below; do not count the check as passed until the run finishes successfully.
 - **Remaining gaps:** This expands but does not complete the full route/role matrix. Continue testing rejected access requests, unknown methods, deleted documents, disabled accounts, and concurrent operations.
 - **Commit:** [Owner and admin route authorization tests](https://github.com/23jr1a04b0-max/Trust-Vault/commit/8f1b1c8ae1aded3d2f9dbb0da2b7f752bcb57e9a).
+
+## Entry 13: 2026-10-23, extend route-boundary and upload parser regression tests
+
+- **Prompt or faithful summary:** Continue improving TrustVault directly on the feature branch, test actual authorization behavior, and verify every test change through CI.
+- **Generated result:** Added HTTP assertions for owner-only grant lists, document audit records, granting/revoking permissions, global audit role restrictions, administrator private-metadata isolation, non-admin account mutation denial, and rejection not granting content access. Corrected multipart test delimiters so the raw requests contain actual CRLF bytes and genuinely exercise duplicate-field and multiple-file handling.
+- **Verification:** GitHub Actions passed `npm run check` and the Docker build/health smoke test for the latest authorization test commit.
+- **Remaining gaps:** The route/role matrix is broader but still incomplete. Upload validation still needs independent review/fuzzing, malware scanning, and format-specific parsing. No live deployment or independent security assessment is claimed.
+- **Commit:** [Expanded authorization tests](https://github.com/23jr1a04b0-max/Trust-Vault/commit/4bd93e1b17af205d6a6453d9153d4a15ed8603ea).
