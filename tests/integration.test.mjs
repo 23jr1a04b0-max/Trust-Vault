@@ -126,6 +126,9 @@ test('HTTP authorization: private isolation, Read versus Download, approval and 
   assert.equal(listing.documents.find(doc => doc.id === privateDoc.id)?.accessPermission, 'Read');
   const readEdit = await request(viewer, `/api/documents/${privateDoc.id}`, { method: 'PATCH', body: JSON.stringify({ name: 'blocked.txt', category: 'Tests' }) });
   assert.equal(readEdit.status, 404, 'Read permission must not allow metadata editing');
+  const readDelete = await request(viewer, `/api/documents/${privateDoc.id}`, { method:'DELETE', body:'{}' });
+  assert.equal(readDelete.status,404,'a non-owner cannot delete a document even when it has a Read grant');
+  assert.equal((await request(viewer,'/api/users')).status,403,'non-administrators cannot list accounts');
   const noCsrf = await fetch(base + `/api/documents/${privateDoc.id}/permissions`, { method: 'POST', headers: { cookie: owner.cookie, 'content-type': 'application/json' }, body: JSON.stringify({ email: 'viewer@trustvault.test', permission: 'Read' }) });
   assert.equal(noCsrf.status, 403, 'state-changing requests must require a CSRF token');
   let content = await request(viewer, `/api/documents/${privateDoc.id}/content`);
@@ -156,12 +159,19 @@ test('HTTP authorization: private isolation, Read versus Download, approval and 
   const revoke = await request(owner, `/api/documents/${privateDoc.id}/permissions?userId=${encodeURIComponent(grant.user_id)}`, { method: 'DELETE' });
   assert.equal(revoke.status, 200);
   assert.equal((await request(viewer, `/api/documents/${privateDoc.id}/content`)).status, 404, 'revocation must block the next content request');
+  const deleteDoc = await request(owner,`/api/documents/${privateDoc.id}`,{method:'DELETE',body:'{}'});
+  assert.equal(deleteDoc.status,200,await deleteDoc.text(),'owner can soft-delete owned document');
+  assert.equal((await request(owner,`/api/documents/${privateDoc.id}/content`)).status,404,'soft-deleted documents must not serve content');
   const auditCheck = await request(admin, '/api/audit/verify', { method: 'POST', body: '{}' });
   const auditText = await auditCheck.text();
   assert.equal(auditCheck.status, 200, auditText);
   assert.equal(JSON.parse(auditText).valid, true, 'audit chain should verify after tested operations');
 
   const publicDoc = await upload(owner, 'Public', 'public.txt');
+  const selfRequest = await request(owner, `/api/documents/${publicDoc.id}/requests`, {method:'POST',body:JSON.stringify({permission:'Read'})});
+  assert.equal(selfRequest.status,404,'document owners cannot request access to their own documents');
+  const privateRequest = await request(viewer, `/api/documents/${privateDoc.id}/requests`, {method:'POST',body:JSON.stringify({permission:'Read'})});
+  assert.equal(privateRequest.status,404,'private documents must not accept public access requests');
   listing = await (await request(viewer, '/api/documents')).json();
   assert.equal(listing.documents.find(doc => doc.id === publicDoc.id)?.accessPermission, 'Public listing');
   const requestAccess = await request(viewer, `/api/documents/${publicDoc.id}/requests`, { method: 'POST', body: JSON.stringify({ permission: 'Read' }) });
