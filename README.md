@@ -1,6 +1,6 @@
 # TrustVault: Secure Document Sharing
 
-TrustVault is a security-first document workspace. Document owners upload files and grant named people document-specific Read or Edit permissions. Every protected document request is authorized on the server. Revoking a grant blocks the next protected request. Administrators can inspect account status and audit metadata, but administrator role alone does not grant document-content access.
+TrustVault is a security-first document workspace. Document owners upload files, choose Public or Private visibility, and grant named people document-specific Read, Download, or Edit permissions with optional expiry. Every protected document request is authorized on the server. Revoking a grant blocks the next protected request. Administrators can inspect account status and audit metadata, but administrator role alone does not grant document-content access.
 
 **Status: review build, not production-ready.** The working implementation uses Node.js, the built-in HTTP server, the built-in SQLite module, and plain JavaScript. Node's built-in SQLite API is experimental in the tested runtime. The repository still needs a verified public deployment, a production database and migration strategy, independent audit anchoring, operational hardening, and an external security review.
 
