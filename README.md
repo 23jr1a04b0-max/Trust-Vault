@@ -45,19 +45,21 @@ Open `http://localhost:3000`.
 
 ## Run with Docker Compose
 
-Docker and the Docker Compose plugin are required. For a production-style container, copy the example environment file and set the real trusted HTTPS origin and a fresh audit key. Do not commit the resulting .env file.
+Docker and the Docker Compose plugin are required. For a production-style container, copy the example environment file and set the real trusted HTTPS origin, a fresh audit key, and an independently administered HTTPS append-only audit receiver URL/token. The receiver is mandatory in production; a placeholder URL is only for CI tests. Do not commit the resulting .env file.
 
 ```bash
 cp .env.example .env
 openssl rand -hex 32
 # Paste the generated value into AUDIT_HMAC_KEY in .env.
 # Set TRUSTED_ORIGINS to your exact HTTPS origin.
+# Set AUDIT_SINK_URL and AUDIT_SINK_TOKEN for a separately administered
+# HTTPS receiver that verifies signatures and writes to append-only storage.
 docker compose up --build -d
 docker compose ps
 docker compose logs --tail=100 trustvault
 ```
 
-Compose binds the app to host loopback at port 3000 and stores database/audit state and uploaded files in persistent named volumes. Configure a TLS reverse proxy before using a public domain. See the [deployment guide](docs/DEPLOYMENT.md) for backup and production notes.
+Compose binds the app to host loopback at port 3000 and stores database/audit state and uploaded files in persistent named volumes. Configure the sample TLS/rate-limiting reverse proxy before using a public domain. Compose also runs an internal ClamAV scanner; production uploads fail closed if scanning is unavailable. See the [deployment guide](docs/DEPLOYMENT.md), [backup/restore runbook](docs/BACKUP_RESTORE.md), and [production readiness gate](docs/PRODUCTION_READINESS.md) for operational requirements.
 
 ## Local demo accounts
 
@@ -78,7 +80,7 @@ npm test
 npm run check
 ```
 
-The HTTP integration test uses a disposable local server and verifies private-document metadata isolation, administrator content boundaries, Read-versus-Download and Read-versus-Edit separation, grant expiry, revocation, public metadata discovery, duplicate pending-request rejection, repeated requests after decisions, owner approval, upload parser rejection cases, CSRF enforcement, login rate limiting, account disable/session invalidation, logout, and audit-chain consistency, self-disable protection, and runtime detection of audit-event tampering. The mutation check removes the download authorization guard in a temporary copy and requires the integration test to fail specifically because Read-only access can download. Idle/absolute session expiry, deeper file-format parser attacks, audit tampering/truncation, concurrent streaming revocation, and every remaining route still need dedicated runtime tests. Production Origin enforcement and Secure-cookie behavior are covered by a separate production-mode HTTP test.
+The HTTP integration test uses a disposable local server and verifies private-document metadata isolation, administrator content boundaries, Read-versus-Download and Read-versus-Edit separation, grant expiry, revocation, public metadata discovery, duplicate pending-request rejection, repeated requests after decisions, owner approval, upload parser rejection cases, CSRF enforcement, login rate limiting, account disable/session invalidation, logout, and audit-chain consistency, self-disable protection, and runtime detection of audit-event tampering. The mutation check removes the download authorization guard in a temporary copy and requires the integration test to fail specifically because Read-only access can download. Audit tampering, tail truncation, checkpoint deletion across restart, production Origin enforcement, scanner protocol behavior, signed audit-sink delivery, and download authorization mutation are covered by automated tests. This still does not replace a full route-by-route penetration test. Production Origin enforcement and Secure-cookie behavior are covered by a separate production-mode HTTP test.
 
 GitHub Actions also builds the production Docker image and starts it briefly to smoke-test the health endpoint. Passing these tests is not a penetration test or a production certification.
 
@@ -88,6 +90,8 @@ GitHub Actions also builds the production Docker image and starts it briefly to 
 - `TRUSTED_ORIGINS` must contain exact trusted origins, including scheme and optional port, separated by commas. Production state-changing API requests fail closed if the Origin is missing or not allowed.
 - `MAX_UPLOAD_BYTES` defaults to 10 MiB.
 - `SEED_DEMO_USERS` must remain false in production.
+- Production startup requires `AUDIT_SINK_URL` and `AUDIT_SINK_TOKEN`; the receiver must be independently administered, verify `X-TrustVault-Signature`, deduplicate `Idempotency-Key`, and retain events immutably. Inspect `/api/audit/sink-status` as an Administrator.
+- `CLAMAV_HOST` and `CLAMAV_PORT` identify the internal scanner; Compose configures these automatically.
 
 The audit HMAC key must be protected independently of the database. HMAC makes database-only edits detectable when the key remains secret. It does not protect against an attacker who controls the application host and the key. Production still needs independently controlled immutable audit checkpoints.
 
