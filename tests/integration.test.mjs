@@ -100,6 +100,8 @@ test('HTTP authorization: private isolation, Read versus Download, approval and 
     return JSON.parse(responseText).document;
   }
   const owner = await login('owner@trustvault.test');
+  const sqlInjectionLogin=await fetch(base+'/api/auth/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email:"' OR 1=1 --",password,role:'Viewer'})});
+  assert.equal(sqlInjectionLogin.status,401,'SQL-like login input must not bypass authentication or break the query');
   const viewer = await login('viewer@trustvault.test');
   const signupResponse=await fetch(base+'/api/auth/signup',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({name:'New Owner',email:'new-owner@trustvault.test',password:'Long-Enough-Test-Pass-123',role:'DocumentOwner'})});
   const signupOwnerData=await signupResponse.json();
