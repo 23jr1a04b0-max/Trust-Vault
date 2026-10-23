@@ -41,3 +41,10 @@ Passing these checks does not establish that every route is secure, that the app
 ## Decision
 
 TrustVault is a working review build with a passing CI and container smoke test. It is **not production-ready and not independently security-certified**. Do not use it for real confidential documents or represent it as a secure production service until the remaining risks are addressed and the deployed application is independently verified.
+
+
+## Security hardening follow-up (2026-10-23)
+
+Additional changes on the same feature branch validate exact HTTPS origins at startup, bound HTTP header/request/keep-alive timing, apply CSP and related security headers to static responses, limit access requests to Viewer accounts, reject path-bearing upload filenames, strengthen basic format-signature checks, reject invalid UTF-8 text and incomplete PDFs, bound notification retention per user, and clean stale sign-up rate-limit entries. Integration tests were added for these cases. Check the workflow run for the latest commit before relying on its result.
+
+These changes do not close the deployment blockers above. No live domain/proxy verification, malware scanning/quarantine, shared multi-instance rate limiter, external immutable audit checkpoint, backup/restore drill, monitoring/alerting, MFA/password recovery, or independent security assessment has been completed in this work.
