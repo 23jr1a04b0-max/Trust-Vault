@@ -112,8 +112,9 @@ test('HTTP authorization: private isolation, Read versus Download, approval and 
   assert.equal(revoke.status, 200);
   assert.equal((await request(viewer, `/api/documents/${privateDoc.id}/content`)).status, 404, 'revocation must block the next content request');
   const auditCheck = await request(admin, '/api/audit/verify', { method: 'POST', body: '{}' });
-  assert.equal(auditCheck.status, 200, await auditCheck.text());
-  assert.equal((await auditCheck.json()).valid, true, 'audit chain should verify after tested operations');
+  const auditText = await auditCheck.text();
+  assert.equal(auditCheck.status, 200, auditText);
+  assert.equal(JSON.parse(auditText).valid, true, 'audit chain should verify after tested operations');
 
   const publicDoc = await upload(owner, 'Public', 'public.txt');
   listing = await (await request(viewer, '/api/documents')).json();
