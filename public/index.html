@@ -57,8 +57,11 @@
         <div id="request-list" class="document-list"></div>
       </section>
       <section id="admin-panel" class="panel" hidden>
-        <h2>Administrator audit</h2>
-        <div class="actions"><button id="audit-refresh" class="secondary" type="button">Load recent activity</button><button id="audit-verify" class="secondary" type="button">Verify audit chain</button></div>
+        <h2>Administrator tools</h2>
+        <p class="muted">Manage account availability and review security activity. Administrator access does not grant document-content access.</p>
+        <div class="actions"><button id="users-refresh" class="secondary" type="button">Load accounts</button><button id="audit-refresh" class="secondary" type="button">Load recent activity</button><button id="audit-verify" class="secondary" type="button">Verify audit chain</button></div>
+        <div id="user-list" class="document-list"></div>
+        <h3>Audit activity</h3>
         <pre id="audit-output" class="audit-output" aria-live="polite"></pre>
       </section>
     </section>
