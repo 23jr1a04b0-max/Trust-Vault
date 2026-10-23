@@ -68,6 +68,11 @@ test('HTTP authorization: private isolation, Read versus Download, approval and 
     rmSync(temp, { recursive: true, force: true });
   });
   await waitForServer(base, child);
+  const staticResponse=await fetch(base+'/');
+  assert.equal(staticResponse.status,200);
+  assert.match(staticResponse.headers.get('content-security-policy')||'',/frame-ancestors 'none'/,'static pages should receive a restrictive CSP');
+  assert.equal(staticResponse.headers.get('x-frame-options'),'DENY');
+  assert.equal(staticResponse.headers.get('referrer-policy'),'no-referrer');
   async function login(email, role = email.startsWith('admin@') ? 'Administrator' : email.startsWith('owner@') ? 'DocumentOwner' : 'Viewer') {
     const response = await fetch(base + '/api/auth/login', {
       method: 'POST', headers: { 'content-type': 'application/json' },
@@ -163,6 +168,9 @@ test('HTTP authorization: private isolation, Read versus Download, approval and 
   const boundary = '----trustvault-malformed-test';
   const malformed = await request(owner,'/api/documents',{method:'POST',headers:{'content-type':`multipart/form-data; boundary=${boundary}`},body:`--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="x.txt"\r\nContent-Type: text/plain\r\n\r\nmissing closing boundary`});
   assert.equal(malformed.status,400,'malformed multipart must be rejected cleanly');
+  const traversalBoundary='----trustvault-path-traversal';
+  const traversalUpload=await request(owner,'/api/documents',{method:'POST',headers:{'content-type':`multipart/form-data; boundary=${traversalBoundary}`},body:`--${traversalBoundary}\r\nContent-Disposition: form-data; name="file"; filename="../outside.txt"\r\nContent-Type: text/plain\r\n\r\nsafe text\r\n--${traversalBoundary}--\r\n`});
+  assert.equal(traversalUpload.status,400,'path-bearing upload filenames must be rejected');
   const duplicateBoundary='----trustvault-duplicate-field';
   const duplicateFields=await request(owner,'/api/documents',{method:'POST',headers:{'content-type':`multipart/form-data; boundary=${duplicateBoundary}`},body:`--${duplicateBoundary}\r\nContent-Disposition: form-data; name="category"\r\n\r\none\r\n--${duplicateBoundary}\r\nContent-Disposition: form-data; name="category"\r\n\r\ntwo\r\n--${duplicateBoundary}--\r\n`});
   assert.equal(duplicateFields.status,400,'duplicate multipart fields must be rejected');
@@ -240,6 +248,8 @@ test('HTTP authorization: private isolation, Read versus Download, approval and 
   assert.equal(JSON.parse(auditText).valid, true, 'audit chain should verify after tested operations');
 
   const publicDoc = await upload(owner, 'Public', 'public.txt');
+  const adminAccessRequest=await request(admin,`/api/documents/${publicDoc.id}/requests`,{method:'POST',body:JSON.stringify({permission:'Read'})});
+  assert.equal(adminAccessRequest.status,403,'only Viewer accounts may request document access');
   const selfRequest = await request(owner, `/api/documents/${publicDoc.id}/requests`, {method:'POST',body:JSON.stringify({permission:'Read'})});
   assert.equal(selfRequest.status,404,'document owners cannot request access to their own documents');
   const privateRequest = await request(viewer, `/api/documents/${privateDoc.id}/requests`, {method:'POST',body:JSON.stringify({permission:'Read'})});
