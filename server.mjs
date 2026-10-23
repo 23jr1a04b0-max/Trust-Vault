@@ -8,6 +8,7 @@ import { pipeline } from 'node:stream/promises';
 import { Transform } from 'node:stream';
 import { scanWithClamAV } from './clamav.mjs';
 import { validateAuditSinkConfig, sendAuditEvent } from './audit-sink.mjs';
+import { generateTotpSecret, encryptTotpSecret, decryptTotpSecret, verifyTotp } from './mfa.mjs';
 
 const scrypt = promisify(scryptCb);
 const ROOT = process.cwd();
@@ -37,6 +38,9 @@ if (!DB.prepare('PRAGMA table_info(users)').all().some(c => c.name === 'approval
 if (!DB.prepare('PRAGMA table_info(audit)').all().some(c => c.name === 'hash_version')) DB.exec('ALTER TABLE audit ADD COLUMN hash_version INTEGER NOT NULL DEFAULT 1');
 if (!DB.prepare('PRAGMA table_info(documents)').all().some(c => c.name === 'visibility')) DB.exec("ALTER TABLE documents ADD COLUMN visibility TEXT NOT NULL DEFAULT 'Private' CHECK (visibility IN ('Private','Public'))");
 if (!DB.prepare('PRAGMA table_info(grants)').all().some(c => c.name === 'expires_at')) DB.exec('ALTER TABLE grants ADD COLUMN expires_at TEXT');
+if (!DB.prepare('PRAGMA table_info(users)').all().some(c => c.name === 'mfa_secret_enc')) DB.exec('ALTER TABLE users ADD COLUMN mfa_secret_enc TEXT');
+if (!DB.prepare('PRAGMA table_info(users)').all().some(c => c.name === 'mfa_enabled')) DB.exec('ALTER TABLE users ADD COLUMN mfa_enabled INTEGER NOT NULL DEFAULT 0 CHECK (mfa_enabled IN (0,1))');
+if (!DB.prepare('PRAGMA table_info(users)').all().some(c => c.name === 'mfa_last_step')) DB.exec('ALTER TABLE users ADD COLUMN mfa_last_step INTEGER NOT NULL DEFAULT -1');
 DB.exec(`CREATE TABLE IF NOT EXISTS access_requests (
   id TEXT PRIMARY KEY,
   document_id TEXT NOT NULL REFERENCES documents(id),
@@ -87,6 +91,8 @@ const auditMac = value => createHmac('sha256', auditKey).update(value).digest('h
 const AUDIT_SINK_TOKEN=process.env.AUDIT_SINK_TOKEN||'';
 const AUDIT_SINK_URL=validateAuditSinkConfig(process.env.AUDIT_SINK_URL||'',AUDIT_SINK_TOKEN);
 if(process.env.NODE_ENV==='production'&&!AUDIT_SINK_URL) throw new Error('Production requires AUDIT_SINK_URL and AUDIT_SINK_TOKEN for independent audit anchoring.');
+const MFA_ENCRYPTION_KEY=process.env.MFA_ENCRYPTION_KEY||'';
+if(process.env.NODE_ENV==='production'&&!/^[a-fA-F0-9]{64}$/.test(MFA_ENCRYPTION_KEY)) throw new Error('Production requires MFA_ENCRYPTION_KEY as 64 hexadecimal characters (32 bytes).');
 const AUDIT_CHECKPOINT = join(DATA, 'audit-checkpoint.json');
 const AUDIT_CHECKPOINT_MARKER = join(DATA, 'audit-checkpoint.initialized');
 function persistAuditCheckpoint() {
@@ -226,10 +232,10 @@ function currentUser(req) {
   const tokenHash=sha(token), current=Date.now();
   const s=q('SELECT * FROM sessions WHERE id_hash=? AND expires_at>? AND last_seen_at>?',tokenHash,current,current-IDLE_SESSION_MS);
   if(!s) { if(token) run('DELETE FROM sessions WHERE id_hash=? AND (expires_at<=? OR last_seen_at<=?)',tokenHash,current,current-IDLE_SESSION_MS); return null; }
-  const u=q('SELECT id,email,display_name,role,disabled,approval_status FROM users WHERE id=?',s.user_id);
+  const u=q('SELECT id,email,display_name,role,disabled,approval_status,mfa_enabled FROM users WHERE id=?',s.user_id);
   if(!u || u.disabled || (u.role==='DocumentOwner' && u.approval_status!=='Approved')) {run('DELETE FROM sessions WHERE id_hash=?',tokenHash);return null;}
   run('UPDATE sessions SET last_seen_at=? WHERE id_hash=?',current,tokenHash);
-  return {...u,csrf:s.csrf,sessionHash:tokenHash};
+  return {...u,mfaEnabled:Boolean(u.mfa_enabled),csrf:s.csrf,sessionHash:tokenHash};
 }
 function configuredProductionOrigins() {
   if(process.env.NODE_ENV!=='production') return [];
@@ -320,18 +326,48 @@ async function route(req,res) {
         if(!ok) { audit(null,'auth.login','user',null,'denied','invalid_credentials_or_account_unavailable',requestId); return json(res,401,{error:'Email or password is incorrect.'}); }
         if(u.role==='DocumentOwner' && u.approval_status!=='Approved') { audit(u.id,'auth.login','user',u.id,'denied','owner_account_'+String(u.approval_status||'Pending').toLowerCase(),requestId); return json(res,403,{error:u.approval_status==='Rejected'?'Your owner account request was rejected. Contact the administrator.':'Your owner account is awaiting administrator approval.'}); }
         if(!['Administrator','DocumentOwner','Viewer'].includes(requestedRole) || requestedRole!==u.role) { audit(u.id,'auth.login','user',u.id,'denied','selected_role_mismatch',requestId); return json(res,403,{error:'This account does not match the selected role. Choose the role assigned to your account.'}); }
-        audit(u.id,'auth.login','user',u.id,'success','credentials_and_role_valid',requestId);
+        if(u.role==='Administrator' && u.mfa_enabled) {
+          let secret, step=null;
+          try { secret=decryptTotpSecret(u.mfa_secret_enc,MFA_ENCRYPTION_KEY); step=verifyTotp(secret,d.mfaCode); } catch { step=null; }
+          if(step===null || step<=u.mfa_last_step) { audit(u.id,'auth.login.mfa','user',u.id,'denied',step===null?'invalid_or_missing_totp':'totp_replay_rejected',requestId); return json(res,401,{error:'Enter a valid, unused authenticator code.'}); }
+          run('UPDATE users SET mfa_last_step=? WHERE id=?',step,u.id);
+        }
+        audit(u.id,'auth.login','user',u.id,'success',u.role==='Administrator'&&u.mfa_enabled?'credentials_role_and_mfa_valid':'credentials_and_role_valid',requestId);
         // Rotate the browser session at login and invalidate any prior session cookie.
         const priorToken=cookies(req).tv_session; if(priorToken) run('DELETE FROM sessions WHERE id_hash=?',sha(priorToken));
         const token=randomBytes(32).toString('base64url'), csrf=randomBytes(24).toString('base64url'), created=Date.now(), expires=created+ABSOLUTE_SESSION_MS;
         run('INSERT INTO sessions(id_hash,user_id,csrf,expires_at,last_seen_at) VALUES(?,?,?,?,?)',sha(token),u.id,csrf,expires,created);
         const secure=process.env.NODE_ENV==='production'?'; Secure':'';
-        return json(res,200,{user:{id:u.id,email:u.email,name:u.display_name,role:u.role},csrfToken:csrf},{'set-cookie':`tv_session=${encodeURIComponent(token)}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${Math.floor(ABSOLUTE_SESSION_MS/1000)}${secure}`});
+        return json(res,200,{user:{id:u.id,email:u.email,name:u.display_name,role:u.role,mfaEnabled:Boolean(u.mfa_enabled)},csrfToken:csrf},{'set-cookie':`tv_session=${encodeURIComponent(token)}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${Math.floor(ABSOLUTE_SESSION_MS/1000)}${secure}`});
       }
-      if(path==='/api/auth/me' && method==='GET') return user?json(res,200,{user:{id:user.id,email:user.email,name:user.display_name,role:user.role},csrfToken:user.csrf}):json(res,401,{error:'Authentication required'});
+      if(path==='/api/auth/me' && method==='GET') return user?json(res,200,{user:{id:user.id,email:user.email,name:user.display_name,role:user.role,mfaEnabled:Boolean(user.mfa_enabled)},csrfToken:user.csrf}):json(res,401,{error:'Authentication required'});
       if(path==='/api/auth/logout' && method==='POST') { if(!user) return json(res,204,{}); requireCsrf(req,user); run('DELETE FROM sessions WHERE id_hash=?',user.sessionHash); audit(user.id,'auth.logout','user',user.id,'success','session_ended',requestId); return json(res,204,{}, {'set-cookie':`tv_session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0${process.env.NODE_ENV==='production'?'; Secure':''}`}); }
       if(!user) { audit(null,'auth.required', 'route', path,'denied','unauthenticated',requestId); return json(res,401,{error:'Authentication required'}); }
       if(method!=='GET') requireCsrf(req,user);
+      if(user.role==='Administrator' && !user.mfa_enabled && !['/api/auth/me','/api/auth/logout','/api/admin/mfa/enroll','/api/admin/mfa/verify'].includes(path)) {
+        audit(user.id,'admin.mfa.required','route',path,'denied','administrator_mfa_enrollment_required',requestId);
+        return json(res,403,{error:'Set up administrator multi-factor authentication before using administrator tools.'});
+      }
+      if(path==='/api/admin/mfa/enroll' && method==='POST') {
+        if(user.role!=='Administrator') { audit(user.id,'admin.mfa.enroll','user',user.id,'denied','administrator_role_required',requestId); return json(res,403,{error:'Administrator role required'}); }
+        if(user.mfa_enabled) { audit(user.id,'admin.mfa.enroll','user',user.id,'denied','mfa_already_enabled',requestId); return json(res,409,{error:'Administrator MFA is already enabled.'}); }
+        const secret=generateTotpSecret();
+        run('UPDATE users SET mfa_secret_enc=? WHERE id=?',encryptTotpSecret(secret,MFA_ENCRYPTION_KEY),user.id);
+        audit(user.id,'admin.mfa.enroll','user',user.id,'success','totp_secret_created_pending_verification',requestId);
+        const uri='otpauth://totp/TrustVault:'+encodeURIComponent(user.email)+'?secret='+secret+'&issuer=TrustVault&algorithm=SHA1&digits=6&period=30';
+        return json(res,200,{secret,otpauthUri:uri,message:'Add this secret to your authenticator app, then verify a current code. Keep the secret private.'});
+      }
+      if(path==='/api/admin/mfa/verify' && method==='POST') {
+        if(user.role!=='Administrator') { audit(user.id,'admin.mfa.verify','user',user.id,'denied','administrator_role_required',requestId); return json(res,403,{error:'Administrator role required'}); }
+        const target=q('SELECT mfa_secret_enc,mfa_enabled,mfa_last_step FROM users WHERE id=?',user.id);
+        if(target.mfa_enabled) { audit(user.id,'admin.mfa.verify','user',user.id,'denied','mfa_already_enabled',requestId); return json(res,409,{error:'Administrator MFA is already enabled.'}); }
+        let secret,step=null;
+        try { secret=decryptTotpSecret(target.mfa_secret_enc,MFA_ENCRYPTION_KEY); step=verifyTotp(secret,(await readJson(req)).code); } catch { step=null; }
+        if(step===null || step<=target.mfa_last_step) { audit(user.id,'admin.mfa.verify','user',user.id,'denied','invalid_or_replayed_totp',requestId); return json(res,400,{error:'Enter a valid, current authenticator code.'}); }
+        run('UPDATE users SET mfa_enabled=1,mfa_last_step=? WHERE id=?',step,user.id);
+        audit(user.id,'admin.mfa.verify','user',user.id,'success','totp_enabled',requestId);
+        return json(res,200,{ok:true,mfaEnabled:true});
+      }
       if(path==='/api/notifications' && method==='GET') {
         const rows=all('SELECT * FROM notifications WHERE user_id=? ORDER BY created_at DESC LIMIT 100',user.id);
         const unreadCount=q('SELECT COUNT(*) AS count FROM notifications WHERE user_id=? AND read_at IS NULL',user.id).count;
