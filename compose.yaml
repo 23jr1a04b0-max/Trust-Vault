@@ -15,6 +15,7 @@ services:
       CLAMAV_PORT: "3310"
       AUDIT_SINK_URL: ${AUDIT_SINK_URL:?Set AUDIT_SINK_URL to an independently administered HTTPS append-only audit receiver}
       AUDIT_SINK_TOKEN: ${AUDIT_SINK_TOKEN:?Set AUDIT_SINK_TOKEN to a strong secret shared with the audit receiver}
+      MFA_ENCRYPTION_KEY: ${MFA_ENCRYPTION_KEY:?Set MFA_ENCRYPTION_KEY to 64 random hexadecimal characters}
     depends_on:
       clamav:
         condition: service_healthy
