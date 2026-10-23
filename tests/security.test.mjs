@@ -24,3 +24,14 @@ test('static entry point does not expose private storage paths', () => {
   assert.match(html, /\/favicon\.svg/);
   assert.doesNotMatch(html, /private-files|audit-hmac\.key/);
 });
+
+test('initial dashboard offers role selection and owner/viewer sign-up only', () => {
+  const html = readFileSync('public/index.html','utf8');
+  const js = readFileSync('public/app.js','utf8');
+  for (const role of ['DocumentOwner','Viewer','Administrator']) assert.match(html,new RegExp('data-role="'+role+'"'));
+  assert.match(html,/id="signup-form"/);
+  assert.match(html,/id="show-signup"/);
+  assert.match(js,/api\('\/api\/auth\/signup'/);
+  assert.match(js,/\['DocumentOwner','Viewer'\]\.includes\(selectedRole\)/);
+  assert.match(js,/role: selectedRole/);
+});
