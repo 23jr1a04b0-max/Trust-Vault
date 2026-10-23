@@ -24,7 +24,8 @@ function showLoginForRole(role) {
   $('login-title').textContent = roleDetails[role].title;
   $('login-role-description').textContent = roleDetails[role].description;
   $('signup-prompt').hidden = role === 'Administrator';
-  $('session-status').textContent = roleDetails[role].title;\n  $('mfa-code-row').hidden = role !== 'Administrator';
+  $('session-status').textContent = roleDetails[role].title;
+  $('mfa-code-row').hidden = role !== 'Administrator';
 }
 function showSignup() {
   if (!['DocumentOwner','Viewer'].includes(selectedRole)) return;
@@ -121,7 +122,9 @@ function showAuthenticated(user, token) {
   $('welcome-subtitle').textContent = user.email;
   $('upload-panel').hidden = user.role !== 'DocumentOwner';
   $('requests-panel').hidden = user.role !== 'DocumentOwner';
-  $('admin-panel').hidden = user.role !== 'Administrator';\n  $('admin-mfa-panel').hidden = user.role !== 'Administrator' || !user.mfaRequired || Boolean(user.mfaEnabled);\n  $('admin-tools').hidden = user.role === 'Administrator' && user.mfaRequired && !user.mfaEnabled;
+  $('admin-panel').hidden = user.role !== 'Administrator';
+  $('admin-mfa-panel').hidden = user.role !== 'Administrator' || !user.mfaRequired || Boolean(user.mfaEnabled);
+  $('admin-tools').hidden = user.role === 'Administrator' && user.mfaRequired && !user.mfaEnabled;
   if (user.role !== 'Administrator' || !user.mfaRequired || user.mfaEnabled) loadDocuments();
   else if (user.role === 'Administrator' && user.mfaRequired && !user.mfaEnabled) $('document-list').replaceChildren(el('p','muted','Complete administrator MFA setup to access administrator tools.'));
   if (user.role === 'DocumentOwner') loadAccessRequests();
