@@ -111,6 +111,8 @@ test('HTTP authorization: private isolation, Read versus Download, approval and 
   const duplicateSignup=await fetch(base+'/api/auth/signup',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({name:'Duplicate',email:'new-owner@trustvault.test',password:'Long-Enough-Test-Pass-123',role:'DocumentOwner'})});
   assert.equal(duplicateSignup.status,409,'duplicate email sign-up must be rejected');
   const admin = await login('admin@trustvault.test');
+  const viewerApprovalAttempt=await request(viewer,'/api/users/'+signupOwnerData.userId,{method:'PATCH',body:JSON.stringify({approvalStatus:'Approved'})});
+  assert.equal(viewerApprovalAttempt.status,403,'viewers must not approve owner registrations');
   const pendingOwnerLogin=await fetch(base+'/api/auth/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email:'new-owner@trustvault.test',password:'Long-Enough-Test-Pass-123',role:'DocumentOwner'})});
   assert.equal(pendingOwnerLogin.status,403,'pending owner must not sign in before approval');
   assert.match((await pendingOwnerLogin.json()).error,/awaiting administrator approval/i);
