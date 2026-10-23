@@ -117,13 +117,13 @@ test('HTTP authorization: private isolation, Read versus Download, approval and 
   const binaryText = await binaryUpload.text();
   assert.equal(binaryUpload.status,400,'NUL bytes must be rejected in TXT files');
   const boundary = '----trustvault-malformed-test';
-  const malformed = await request(owner,'/api/documents',{method:'POST',headers:{'content-type':`multipart/form-data; boundary=${boundary}`},body:`--${boundary}\\r\\nContent-Disposition: form-data; name="file"; filename="x.txt"\\r\\nContent-Type: text/plain\\r\\n\\r\\nmissing closing boundary`});
+  const malformed = await request(owner,'/api/documents',{method:'POST',headers:{'content-type':`multipart/form-data; boundary=${boundary}`},body:`--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="x.txt"\r\nContent-Type: text/plain\r\n\r\nmissing closing boundary`});
   assert.equal(malformed.status,400,'malformed multipart must be rejected cleanly');
   const duplicateBoundary='----trustvault-duplicate-field';
-  const duplicateFields=await request(owner,'/api/documents',{method:'POST',headers:{'content-type':`multipart/form-data; boundary=${duplicateBoundary}`},body:`--${duplicateBoundary}\\r\\nContent-Disposition: form-data; name="category"\\r\\n\\r\\none\\r\\n--${duplicateBoundary}\\r\\nContent-Disposition: form-data; name="category"\\r\\n\\r\\ntwo\\r\\n--${duplicateBoundary}--\\r\\n`});
+  const duplicateFields=await request(owner,'/api/documents',{method:'POST',headers:{'content-type':`multipart/form-data; boundary=${duplicateBoundary}`},body:`--${duplicateBoundary}\r\nContent-Disposition: form-data; name="category"\r\n\r\none\r\n--${duplicateBoundary}\r\nContent-Disposition: form-data; name="category"\r\n\r\ntwo\r\n--${duplicateBoundary}--\r\n`});
   assert.equal(duplicateFields.status,400,'duplicate multipart fields must be rejected');
   const multiBoundary='----trustvault-multiple-files';
-  const multipleFiles=await request(owner,'/api/documents',{method:'POST',headers:{'content-type':`multipart/form-data; boundary=${multiBoundary}`},body:`--${multiBoundary}\\r\\nContent-Disposition: form-data; name="file"; filename="one.txt"\\r\\nContent-Type: text/plain\\r\\n\\r\\none\\r\\n--${multiBoundary}\\r\\nContent-Disposition: form-data; name="file"; filename="two.txt"\\r\\nContent-Type: text/plain\\r\\n\\r\\ntwo\\r\\n--${multiBoundary}--\\r\\n`});
+  const multipleFiles=await request(owner,'/api/documents',{method:'POST',headers:{'content-type':`multipart/form-data; boundary=${multiBoundary}`},body:`--${multiBoundary}\r\nContent-Disposition: form-data; name="file"; filename="one.txt"\r\nContent-Type: text/plain\r\n\r\none\r\n--${multiBoundary}\r\nContent-Disposition: form-data; name="file"; filename="two.txt"\r\nContent-Type: text/plain\r\n\r\ntwo\r\n--${multiBoundary}--\r\n`});
   assert.equal(multipleFiles.status,400,'multiple-file uploads must be rejected');
   const wrongMimeForm = new FormData();
   wrongMimeForm.append('file',new Blob(['not a trusted text upload'],{type:'application/octet-stream'}),'spoof.txt');
