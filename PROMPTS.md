@@ -100,3 +100,11 @@ This file is intentionally honest about the missing public commit links and sing
 - **Verification:** GitHub Actions passed `npm run check`, including the integration and mutation tests. The Docker health-check step was running at the time this entry was prepared; the run status is linked below for confirmation.
 - **Remaining gaps:** Broader route/role matrix, complex file parser cases, audit-chain tail truncation detection, and concurrent stream revocation still need work.
 - **Commit:** [Session expiry tests](https://github.com/23jr1a04b0-max/Trust-Vault/commit/e91771f3a1701dda753797d0fa4b4f08a795a009).
+
+## Entry 11: 2026-10-23, add malformed multipart regression cases
+
+- **Prompt or faithful summary:** Continue strengthening TrustVault on the feature branch and verify upload validation with real HTTP tests.
+- **Generated result:** Added raw multipart HTTP test cases to confirm duplicate fields and multiple-file uploads are rejected before any file is stored.
+- **Verification:** GitHub Actions passed `npm run check`, including the integration suite and download-authorization mutation test. The Docker build and health smoke test was still running when this note was drafted.
+- **Remaining gaps:** These parser checks are not a substitute for fuzzing or a mature multipart library, malware scanning, quarantine, and format-specific file parser validation.
+- **Commit:** [Multipart regression tests](https://github.com/23jr1a04b0-max/Trust-Vault/commit/8cf6a6d65f0b10931a80f16575506ab25e025534).
