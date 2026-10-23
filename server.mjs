@@ -391,7 +391,24 @@ async function route(req,res) {
   } catch(err) { const status=err.status||500; if(status>=500) console.error('request_failed',requestId,err.message); else if(path.startsWith('/api/')) { try { audit(auditActor,'request.rejected','route',path,'denied',status===403?'csrf_or_origin_validation':status===413?'request_too_large':'client_request_rejected',requestId); } catch(auditError) { console.error('audit_write_failed',requestId,auditError.message); } } if(!res.headersSent) json(res,status,{error:status>=500?'Unexpected server error':err.message}); else res.destroy(); }
 }
 function pathSep(){return process.platform==='win32'?'\\':'/';}
-function validSignature(ext,b){ if(ext==='.txt') return !b.includes(0); if(ext==='.pdf') return b.subarray(0,5).toString()==='%PDF-'; if(ext==='.png') return b.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10])); if(ext==='.jpg'||ext==='.jpeg') return b[0]===0xff&&b[1]===0xd8&&b[b.length-2]===0xff&&b[b.length-1]===0xd9; return false; }
+function validSignature(ext,b){
+  if(ext==='.txt') {
+    if(b.includes(0)) return false;
+    try { new TextDecoder('utf-8',{fatal:true}).decode(b); return true; } catch { return false; }
+  }
+  if(ext==='.pdf') {
+    if(b.length<12||b.subarray(0,5).toString()!=='%PDF-') return false;
+    return b.subarray(Math.max(0,b.length-2048)).toString('latin1').includes('%%EOF');
+  }
+  if(ext==='.png') {
+    return b.length>=24 &&
+      b.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10])) &&
+      b.subarray(12,16).toString('ascii')==='IHDR' &&
+      b.readUInt32BE(16)>0 && b.readUInt32BE(20)>0;
+  }
+  if(ext==='.jpg'||ext==='.jpeg') return b.length>=4&&b[0]===0xff&&b[1]===0xd8&&b[b.length-2]===0xff&&b[b.length-1]===0xd9;
+  return false;
+}
 function parseMultipart(buffer,boundary){
   if (!/^[0-9A-Za-z'()+_,.\/:=?-]{1,200}$/.test(boundary)) throw Object.assign(new Error('Invalid upload boundary'),{status:400});
   const delimiter=Buffer.from('--'+boundary);
