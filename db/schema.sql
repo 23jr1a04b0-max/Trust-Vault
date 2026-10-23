@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS users (
   password_hash TEXT NOT NULL,
   salt TEXT NOT NULL,
   disabled INTEGER NOT NULL DEFAULT 0 CHECK (disabled IN (0,1)),
+  approval_status TEXT NOT NULL DEFAULT 'Approved' CHECK (approval_status IN ('Pending','Approved','Rejected')),
   created_at TEXT NOT NULL
 );
 
