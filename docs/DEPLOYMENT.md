@@ -18,7 +18,7 @@ Demo accounts, when explicitly seeded, are `admin@trustvault.test`, `owner@trust
 
 ## Docker Compose deployment
 
-The repository includes a non-root production image and a Compose file with persistent volumes for the SQLite database/audit key and private uploads. The published port binds to host loopback only, so place a TLS reverse proxy in front of it rather than exposing port 3000 directly.
+The repository includes a non-root production image, persistent volumes for the SQLite database/audit key and private uploads, and an internal ClamAV service. Production uploads fail closed if malware scanning is unavailable or reports malware. The published application port binds to host loopback only, so place a TLS reverse proxy in front of it rather than exposing port 3000 directly.
 
 1. Install Docker Engine and the Docker Compose plugin on a host with persistent disk.
 2. Copy `.env.example` to `.env`. Keep `.env` out of Git.
@@ -27,8 +27,9 @@ The repository includes a non-root production image and a Compose file with pers
 5. Keep `SEED_DEMO_USERS=false`; Compose forces it off.
 6. Build and start with `docker compose up --build -d`.
 7. Check `docker compose ps` and `docker compose logs --tail=100 trustvault`. Test the health endpoint locally with `curl http://127.0.0.1:3000/api/health`.
-8. Configure the TLS reverse proxy to forward to `127.0.0.1:3000`, then verify login, Origin checks, uploads, grants, revocation, and audit verification through the real HTTPS domain.
-9. Follow the [Backup and Restore Runbook](BACKUP_RESTORE.md) to create consistent backups, protect them off-host, and test restoration in isolated staging before storing any important data.
+8. Configure a TLS reverse proxy to forward to `127.0.0.1:3000`. The sample in `deploy/nginx/` provides TLS, request-size limits, trusted forwarding headers, and per-client login/sign-up rate limits. Install the proxy-header snippet in the configured Nginx snippets directory and include `trustvault-limits.conf` inside the Nginx `http {}` context. Replace the example hostname/certificate paths and run `nginx -t` before reload. The sample rate zones are local to one Nginx instance; multi-edge deployments need a shared rate-limit service.
+9. Verify login, Origin checks, uploads with a clean test file, malware rejection using the EICAR test file in an isolated non-production test, scanner-outage fail-closed behavior, grants, revocation, and audit verification through the real HTTPS domain.
+10. Follow the [Backup and Restore Runbook](BACKUP_RESTORE.md) to create consistent backups, protect them off-host, and test restoration in isolated staging before storing any important data.
 
 The CI workflow builds the image and starts it briefly to smoke-test the health endpoint. This is a container smoke test, not proof of a secure production deployment. Use a persistent host and independent backups; do not deploy confidential files until the known limitations below are addressed.
 
@@ -41,6 +42,8 @@ The CI workflow builds the image and starts it briefly to smoke-test the health 
 - Set `PORT` as required by the host.
 - Persist and restrict `data/` and `private-files/`; keep them outside any static web root.
 - Use HTTPS and a host with persistent storage. Verify backups and restore procedures.
+- Keep ClamAV's TCP port private to the Compose network. Do not publish port 3310 to the host or internet. Keep the scanner signatures updated and monitor scanner health.
+- Install and test the sample Nginx rate-limit configuration or an equivalent shared edge limiter before public access.
 - Verify health endpoint, cookies, Origin enforcement, uploads, grants, revocation, audit verification, and logs in the target environment.
 
 No live deployment URL or production credentials are currently supplied by this repository. Do not claim deployment is complete until a real URL has been tested.
