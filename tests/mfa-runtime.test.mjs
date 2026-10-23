@@ -54,7 +54,7 @@ test('production administrators must enroll TOTP and use non-replayed codes',asy
   response=await api('/api/admin/mfa/verify',{code:currentCode});
   responseText=await response.text();
   assert.equal(response.status,200,responseText);
-  response=await api('/api/users',{});
+  response=await api('/api/users',{},'GET');
   assert.equal(response.status,200,'admin tools become available after MFA is enabled');
   response=await fetch(base+'/api/auth/logout',{method:'POST',headers:{origin:trustedOrigin,cookie,'x-csrf-token':loginData.csrfToken,'content-type':'application/json'},body:'{}'});
   assert.equal(response.status,204);
