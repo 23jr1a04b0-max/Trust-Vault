@@ -120,7 +120,7 @@ test('HTTP authorization: private isolation, Read versus Download, approval and 
   assert.equal(approvedOwnerLogin.status,200,'approved owner should be allowed to sign in');
   const approvedOwnerCookie=approvedOwnerLogin.headers.get('set-cookie');
   assert.ok(approvedOwnerCookie,'approved owner should receive a session');
-  const ownerSessionDb=new DatabaseSync(dbPath);
+  const ownerSessionDb=new DatabaseSync(join(temp,'data','trustvault.sqlite'));
   ownerSessionDb.prepare("UPDATE users SET approval_status='Rejected' WHERE id=?").run(signupOwnerData.userId);
   const revokedApprovalSession=await fetch(base+'/api/documents',{headers:{cookie:approvedOwnerCookie.split(';')[0]}});
   assert.equal(revokedApprovalSession.status,401,'a previously approved owner session must be blocked if administrator approval is revoked');
