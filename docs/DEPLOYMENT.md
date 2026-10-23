@@ -27,6 +27,16 @@ The repository includes a non-root production image, persistent volumes for the 
 5. Keep `SEED_DEMO_USERS=false`; Compose forces it off.
 6. Build and start with `docker compose up --build -d`.
 7. Check `docker compose ps` and `docker compose logs --tail=100 trustvault`. Test the health endpoint locally with `curl http://127.0.0.1:3000/api/health`.
+7. Create the initial Administrator exactly once after the application container is healthy. The script refuses to create another Administrator and records the bootstrap event in the audit chain/outbox. In a Bash shell, use:
+   ```bash
+   read -r -p "Administrator email: " ADMIN_EMAIL
+   read -r -p "Administrator display name: " ADMIN_NAME
+   read -r -s -p "Administrator password (16+ characters): " ADMIN_PASSWORD
+   printf '\\n'
+   docker compose exec -e ADMIN_EMAIL="$ADMIN_EMAIL" -e ADMIN_NAME="$ADMIN_NAME" -e ADMIN_PASSWORD="$ADMIN_PASSWORD" trustvault node scripts/create-admin.mjs
+   unset ADMIN_PASSWORD
+   ```
+   Use a unique password from a password manager. Do not paste the password into the command text or commit it. Confirm the script reports success, then sign in and verify audit delivery.
 8. Configure a TLS reverse proxy to forward to `127.0.0.1:3000`. The sample in `deploy/nginx/` provides TLS, request-size limits, trusted forwarding headers, and per-client login/sign-up rate limits. Install the proxy-header snippet in the configured Nginx snippets directory and include `trustvault-limits.conf` inside the Nginx `http {}` context. Replace the example hostname/certificate paths and run `nginx -t` before reload. The sample rate zones are local to one Nginx instance; multi-edge deployments need a shared rate-limit service.
 9. Verify login, Origin checks, uploads with a clean test file, malware rejection using the EICAR test file in an isolated non-production test, scanner-outage fail-closed behavior, grants, revocation, and audit verification through the real HTTPS domain.
 10. Configure the [automated Restic backup script](../scripts/backup.sh) and [systemd timer](../deploy/systemd/trustvault-backup.timer). Install Restic on the host, create an encrypted remote repository with `restic init`, configure `/etc/trustvault/backup.env` with `RESTIC_REPOSITORY` and `RESTIC_PASSWORD_FILE`, restrict it to root (`chmod 600`), then install/enable the service and timer. Run one backup manually and verify a restore before relying on the schedule.
