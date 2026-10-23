@@ -139,3 +139,10 @@ This file is intentionally honest about the missing public commit links and sing
 - **Generated result:** Added `users.approval_status` (`Pending`, `Approved`, `Rejected`) with a migration that keeps existing accounts approved. New owner sign-ups become pending and cannot sign in until approved; viewer sign-ups are immediately active. Administrator account management now displays approval status and offers approve/reject actions. Approval/rejection decisions are audited and pending/rejected owner sessions are revoked. Added HTTP integration checks for pending login denial, admin approval, approved owner login, rejection, and rejected login. Schema, UI, and README were updated.
 - **Verification:** Automated tests are being rerun in GitHub Actions after these changes. Do not claim the batch passes until the latest workflow reports success.
 - **Remaining gaps:** Email verification and password recovery remain unimplemented. Existing accounts are intentionally migrated as approved; administrators should review legacy owner accounts. Public deployment remains blocked on remaining security and operational review.
+
+## Entry 16: 2026-10-23, enforce approval status on existing sessions
+
+- **Prompt or faithful summary:** Continue hardening the owner-approval flow and ensure pending/rejected owners cannot use owner routes or retain sessions if approval changes.
+- **Generated result:** Updated current-session resolution to reload `approval_status` from the database and invalidate a session when a Document Owner is not currently Approved. Added integration checks for approval revocation after login and for a Viewer being unable to approve an owner account.
+- **Verification:** Latest GitHub Actions runs are queued or in progress; do not mark these newest tests as passed until a run on the latest commit completes successfully.
+- **Remaining gaps:** Review race conditions for requests in progress during an approval change, administrator workflow UX, email notifications, email verification, password recovery, and deployment hardening.
