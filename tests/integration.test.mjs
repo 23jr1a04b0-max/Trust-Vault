@@ -30,7 +30,7 @@ async function waitForServer(base, child) {
 
 test('HTTP authorization: private isolation, Read versus Download, approval and revocation', async t => {
   const temp = mkdtempSync(join(tmpdir(), 'trustvault-test-'));
-  for (const path of ['server.mjs','db/schema.sql','public/index.html','public/app.css','public/app.js','public/404.html']) {
+  for (const path of ['server.mjs','clamav.mjs','db/schema.sql','public/index.html','public/app.css','public/app.js','public/404.html']) {
     const dest = join(temp, path); mkdirSync(dirname(dest), { recursive: true }); copyFileSync(join(root, path), dest);
   }
   // Simulate the earlier branch schema, which had an overly restrictive UNIQUE constraint.
