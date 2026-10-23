@@ -14,4 +14,4 @@ Implemented in the current branch: account login, role checks, session and CSRF 
 
 ## Verification gaps
 
-Automated tests need to exercise the real HTTP server and authorization boundaries. A source-pattern check alone is not a meaningful mutation test. A successful CI run does not replace manual UI testing, a production deployment check, or an independent security assessment.
+The HTTP integration suite exercises real requests against a disposable local server and includes a mutation check that removes the download authorization guard and expects the Read-versus-Download assertion to fail. CI also runs production-mode Origin/cookie tests and builds/smoke-tests the Docker image. Remaining coverage gaps include exhaustive route/role combinations, malformed image/PDF parser cases, audit-chain tail truncation, concurrent-stream revocation, manual UI testing, verification behind the target production reverse proxy, and independent security assessment.
