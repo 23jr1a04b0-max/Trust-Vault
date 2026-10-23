@@ -25,7 +25,7 @@ jobs:
       - name: Build and smoke-test production container
         shell: bash
         run: |
-          AUDIT_HMAC_KEY=test-only-ci-audit-key-at-least-32-bytes TRUSTED_ORIGINS=https://vault.example.test AUDIT_SINK_URL=https://audit.example.test/ingest AUDIT_SINK_TOKEN=test-only-ci-audit-sink-token-at-least-32-bytes docker compose config --quiet
+          AUDIT_HMAC_KEY=test-only-ci-audit-key-at-least-32-bytes TRUSTED_ORIGINS=https://vault.example.test AUDIT_SINK_URL=https://audit.example.test/ingest AUDIT_SINK_TOKEN=test-only-ci-audit-sink-token-at-least-32-bytes MFA_ENCRYPTION_KEY=abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789 docker compose config --quiet
           docker build --tag trustvault:ci .
           docker run --detach --name trustvault-ci --publish 127.0.0.1:3000:3000 \
             --env NODE_ENV=production \
