@@ -137,6 +137,7 @@ if (!DB.prepare('PRAGMA table_info(sessions)').all().some(c => c.name === 'last_
 // In-process defense-in-depth only. Public/multi-instance deployments need a shared limiter at the edge.
 const loginAttempts = new Map();
 const signupAttempts = new Map();
+const mfaVerifyAttempts = new Map();
 const LOGIN_WINDOW_MS = 15 * 60 * 1000;
 const LOGIN_MAX_ATTEMPTS = 10;
 const IDLE_SESSION_MS = 30 * 60 * 1000;
@@ -359,12 +360,20 @@ async function route(req,res) {
       }
       if(path==='/api/admin/mfa/verify' && method==='POST') {
         if(user.role!=='Administrator') { audit(user.id,'admin.mfa.verify','user',user.id,'denied','administrator_role_required',requestId); return json(res,403,{error:'Administrator role required'}); }
+        const mfaAttemptKey=(req.socket.remoteAddress||'unknown')+':'+user.id;
+        const mfaNow=Date.now();
+        let mfaAttempts=mfaVerifyAttempts.get(mfaAttemptKey);
+        if(!mfaAttempts||mfaNow-mfaAttempts.startedAt>=LOGIN_WINDOW_MS) mfaAttempts={startedAt:mfaNow,count:0};
+        if(mfaAttempts.count>=5) { mfaVerifyAttempts.set(mfaAttemptKey,mfaAttempts); audit(user.id,'admin.mfa.verify.rate_limited','user',user.id,'denied','mfa_setup_rate_limit',requestId); return json(res,429,{error:'Too many authenticator attempts. Try again later.'},{'retry-after':String(Math.max(1,Math.ceil((mfaAttempts.startedAt+LOGIN_WINDOW_MS-mfaNow)/1000)))}); }
+        mfaAttempts.count++; mfaVerifyAttempts.set(mfaAttemptKey,mfaAttempts);
+        if(mfaVerifyAttempts.size>5000) for(const [key,value] of mfaVerifyAttempts) if(mfaNow-value.startedAt>=LOGIN_WINDOW_MS) mfaVerifyAttempts.delete(key);
         const target=q('SELECT mfa_secret_enc,mfa_enabled,mfa_last_step FROM users WHERE id=?',user.id);
         if(target.mfa_enabled) { audit(user.id,'admin.mfa.verify','user',user.id,'denied','mfa_already_enabled',requestId); return json(res,409,{error:'Administrator MFA is already enabled.'}); }
         let secret,step=null;
         try { secret=decryptTotpSecret(target.mfa_secret_enc,MFA_ENCRYPTION_KEY); step=verifyTotp(secret,(await readJson(req)).code); } catch { step=null; }
         if(step===null || step<=target.mfa_last_step) { audit(user.id,'admin.mfa.verify','user',user.id,'denied','invalid_or_replayed_totp',requestId); return json(res,400,{error:'Enter a valid, current authenticator code.'}); }
         run('UPDATE users SET mfa_enabled=1,mfa_last_step=? WHERE id=?',step,user.id);
+        mfaVerifyAttempts.delete(mfaAttemptKey);
         audit(user.id,'admin.mfa.verify','user',user.id,'success','totp_enabled',requestId);
         return json(res,200,{ok:true,mfaEnabled:true});
       }
