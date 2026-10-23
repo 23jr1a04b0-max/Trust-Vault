@@ -81,10 +81,16 @@ if (process.env.NODE_ENV === 'production') {
 }
 const auditMac = value => createHmac('sha256', auditKey).update(value).digest('hex');
 const AUDIT_CHECKPOINT = join(DATA, 'audit-checkpoint.json');
+const AUDIT_CHECKPOINT_MARKER = join(DATA, 'audit-checkpoint.initialized');
 function persistAuditCheckpoint() {
+  const checkpointExists=existsSync(AUDIT_CHECKPOINT);
+  const markerExists=existsSync(AUDIT_CHECKPOINT_MARKER);
   const latest=q('SELECT seq,hash FROM audit ORDER BY seq DESC LIMIT 1');
   const existing=readAuditCheckpoint();
-  if(existsSync(AUDIT_CHECKPOINT) && !existing) return;
+  // Once initialized, a missing/corrupt checkpoint must remain a verification failure.
+  // Never silently re-anchor it to the current database tail after a restart.
+  if(markerExists && (!checkpointExists || !existing)) return;
+  if(checkpointExists && !existing) return;
   if(existing) {
     const anchored=existing.seq===0 ? existing.hash==='GENESIS' : q('SELECT hash FROM audit WHERE seq=?',existing.seq)?.hash===existing.hash;
     if(!anchored || existing.seq>(latest?.seq||0)) return;
@@ -93,6 +99,11 @@ function persistAuditCheckpoint() {
   const temporary=AUDIT_CHECKPOINT+'.tmp';
   writeFileSync(temporary,JSON.stringify(checkpoint)+'\n',{mode:0o600});
   renameSync(temporary,AUDIT_CHECKPOINT);
+  if(!markerExists) {
+    try { writeFileSync(AUDIT_CHECKPOINT_MARKER,'initialized\n',{mode:0o600,flag:'wx'}); } catch(error) {
+      if(error.code!=='EEXIST') throw error;
+    }
+  }
 }
 function readAuditCheckpoint() {
   try {
@@ -101,8 +112,10 @@ function readAuditCheckpoint() {
     return value;
   } catch { return null; }
 }
-// Bootstrap once for existing databases; later database-only tail deletion is detectable.
-if(!existsSync(AUDIT_CHECKPOINT)) persistAuditCheckpoint();
+// Legacy databases without a marker are initialized once. After the marker exists,
+// deleting the checkpoint cannot cause the next process to silently trust the database tail.
+if(!existsSync(AUDIT_CHECKPOINT_MARKER) && !existsSync(AUDIT_CHECKPOINT)) persistAuditCheckpoint();
+else if(existsSync(AUDIT_CHECKPOINT) && !existsSync(AUDIT_CHECKPOINT_MARKER)) persistAuditCheckpoint();
 // Migrate existing local MVP databases without requiring users to delete demo data.
 if (!DB.prepare('PRAGMA table_info(sessions)').all().some(c => c.name === 'last_seen_at')) {
   DB.exec('ALTER TABLE sessions ADD COLUMN last_seen_at INTEGER NOT NULL DEFAULT 0');
