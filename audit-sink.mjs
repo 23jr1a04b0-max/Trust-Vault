@@ -23,6 +23,7 @@ export async function sendAuditEvent(payload, {
   const signature = createHmac('sha256', hmacKey).update(body).digest('hex');
   const response = await fetchImpl(url, {
     method: 'POST',
+    redirect: 'error',
     headers: {
       'content-type': 'application/json',
       'authorization': 'Bearer ' + token,
