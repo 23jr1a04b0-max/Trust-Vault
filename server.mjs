@@ -73,6 +73,7 @@ if (!DB.prepare('PRAGMA table_info(sessions)').all().some(c => c.name === 'last_
 }
 // In-process defense-in-depth only. Public/multi-instance deployments need a shared limiter at the edge.
 const loginAttempts = new Map();
+const signupAttempts = new Map();
 const LOGIN_WINDOW_MS = 15 * 60 * 1000;
 const LOGIN_MAX_ATTEMPTS = 10;
 const IDLE_SESSION_MS = 30 * 60 * 1000;
@@ -171,8 +172,31 @@ async function route(req,res) {
       if(method!=='GET' && method!=='HEAD' && !productionOriginAllowed(req)) { audit(null,'request.origin_denied','route',path,'denied','origin_not_allowed',requestId); return json(res,403,{error:'Request origin is not allowed.'}); }
       const user=currentUser(req); auditActor=user?.id||null;
       if(path==='/api/health' && method==='GET') return json(res,200,{ok:true});
+      if(path==='/api/auth/signup' && method==='POST') {
+        const d=await readJson(req);
+        const email=String(d.email||'').trim().toLowerCase();
+        const name=String(d.name||'').trim();
+        const password=String(d.password||'');
+        const role=String(d.role||'');
+        const ip=req.socket.remoteAddress||'unknown';
+        const key='signup:'+ip;
+        const current=Date.now();
+        let attempts=signupAttempts.get(key);
+        if(!attempts||current-attempts.startedAt>=LOGIN_WINDOW_MS) attempts={startedAt:current,count:0};
+        if(attempts.count>=5) { signupAttempts.set(key,attempts); audit(null,'auth.signup.rate_limited','client',null,'denied','signup_rate_limit',requestId); return json(res,429,{error:'Too many sign-up attempts. Try again later.'},{'retry-after':String(Math.max(1,Math.ceil((attempts.startedAt+LOGIN_WINDOW_MS-current)/1000)))}); }
+        attempts.count++; signupAttempts.set(key,attempts);
+        if(!email||email.length>254||!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)||!name||name.length>80||password.length<12||password.length>1024) return json(res,400,{error:'Enter a valid name and email, and a password between 12 and 1024 characters.'});
+        if(!['DocumentOwner','Viewer'].includes(role)) return json(res,400,{error:'Choose Document Owner or Viewer. Administrator accounts are created by an existing trusted administrator.'});
+        if(q('SELECT id FROM users WHERE email=?',email)) { audit(null,'auth.signup','user',null,'denied','email_already_registered',requestId); return json(res,409,{error:'An account with this email already exists. Sign in instead.'}); }
+        const p=await hashPassword(password);
+        const id=randomUUID();
+        try { run('INSERT INTO users(id,email,display_name,role,password_hash,salt,created_at) VALUES(?,?,?,?,?,?,?)',id,email,name,role,p.hash,p.salt,now()); }
+        catch(err) { if(String(err.message).includes('UNIQUE')) return json(res,409,{error:'An account with this email already exists. Sign in instead.'}); throw err; }
+        audit(id,'auth.signup','user',id,'success','self_service_account_created:'+role,requestId);
+        return json(res,201,{ok:true,message:'Account created. Sign in with your new credentials.'});
+      }
       if(path==='/api/auth/login' && method==='POST') {
-        const d=await readJson(req); const email=String(d.email||'').trim().toLowerCase(); const password=String(d.password||'');
+        const d=await readJson(req); const email=String(d.email||'').trim().toLowerCase(); const password=String(d.password||''); const requestedRole=String(d.role||'');
         const retryAfter=loginRateLimit(req,email);
         if(retryAfter) { audit(null,'auth.login.rate_limited','client',null,'denied','login_rate_limit',requestId); return json(res,429,{error:'Too many login attempts. Try again later.'},{'retry-after':String(retryAfter)}); }
         if(email.length>254||password.length>1024) return json(res,400,{error:'Invalid login request'});
@@ -182,6 +206,7 @@ async function route(req,res) {
         const ok=!!u && !u.disabled && passwordMatches;
         audit(ok?u.id:null,'auth.login','user',ok?u.id:null,ok?'success':'denied','invalid_credentials_or_account_unavailable',requestId);
         if(!ok) return json(res,401,{error:'Email or password is incorrect.'});
+        if(!['Administrator','DocumentOwner','Viewer'].includes(requestedRole) || requestedRole!==u.role) return json(res,403,{error:'This account does not match the selected role. Choose the role assigned to your account.'});
         // Rotate the browser session at login and invalidate any prior session cookie.
         const priorToken=cookies(req).tv_session; if(priorToken) run('DELETE FROM sessions WHERE id_hash=?',sha(priorToken));
         const token=randomBytes(32).toString('base64url'), csrf=randomBytes(24).toString('base64url'), created=Date.now(), expires=created+ABSOLUTE_SESSION_MS;
