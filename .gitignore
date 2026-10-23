@@ -9,3 +9,6 @@ coverage/
 .DS_Store
 npm-debug.log*
 data/audit-hmac.key
+
+data/audit-checkpoint.json
+data/audit-checkpoint.json.tmp
