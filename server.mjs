@@ -185,7 +185,7 @@ async function route(req,res) {
         if(!attempts||current-attempts.startedAt>=LOGIN_WINDOW_MS) attempts={startedAt:current,count:0};
         if(attempts.count>=5) { signupAttempts.set(key,attempts); audit(null,'auth.signup.rate_limited','client',null,'denied','signup_rate_limit',requestId); return json(res,429,{error:'Too many sign-up attempts. Try again later.'},{'retry-after':String(Math.max(1,Math.ceil((attempts.startedAt+LOGIN_WINDOW_MS-current)/1000)))}); }
         attempts.count++; signupAttempts.set(key,attempts);
-        if(!email||email.length>254||!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)||!name||name.length>80||password.length<12||password.length>1024) return json(res,400,{error:'Enter a valid name and email, and a password between 12 and 1024 characters.'});
+        if(!email||email.length>254||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||!name||name.length>80||password.length<12||password.length>1024) return json(res,400,{error:'Enter a valid name and email, and a password between 12 and 1024 characters.'});
         if(!['DocumentOwner','Viewer'].includes(role)) return json(res,400,{error:'Choose Document Owner or Viewer. Administrator accounts are created by an existing trusted administrator.'});
         if(q('SELECT id FROM users WHERE email=?',email)) { audit(null,'auth.signup','user',null,'denied','email_already_registered',requestId); return json(res,409,{error:'An account with this email already exists. Sign in instead.'}); }
         const p=await hashPassword(password);
