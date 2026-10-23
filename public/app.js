@@ -145,9 +145,11 @@ async function loadDocuments() {
           if (!email) return;
           const permission = window.prompt('Enter permission: Read, Download, or Edit', 'Read');
           if (!permission) return;
+          const expiresAt = window.prompt('Optional expiry in ISO format, for example 2026-12-31T23:59:00Z. Leave blank for no expiry:', '');
+          if (expiresAt === null) return;
           try {
             await api(`/api/documents/${encodeURIComponent(doc.id)}/permissions`, {
-              method: 'POST', body: JSON.stringify({ email: email.trim(), permission: permission.trim() })
+              method: 'POST', body: JSON.stringify({ email: email.trim(), permission: permission.trim(), expiresAt: expiresAt.trim() || null })
             });
             notice('Access granted. The recipient can access the document on their next request.', 'success');
             loadDocuments();
@@ -157,7 +159,7 @@ async function loadDocuments() {
           try {
             const data = await api(`/api/documents/${encodeURIComponent(doc.id)}/permissions`);
             if (!data.permissions.length) { notice('No access grants exist for this document.'); return; }
-            const lines = data.permissions.map(p => `${p.email} | ${p.permission} | ${p.revoked_at ? 'revoked' : 'active'}`).join('\n');
+            const lines = data.permissions.map(p => `${p.email} | ${p.permission} | ${p.revoked_at ? 'revoked' : (p.expires_at && Date.parse(p.expires_at) <= Date.now() ? 'expired' : 'active')} | expiry: ${p.expires_at || 'none'}`).join('\n');
             const email = window.prompt(`Current grants:\n${lines}\n\nEnter the email address to revoke:`);
             if (!email) return;
             const target = data.permissions.find(p => p.email.toLowerCase() === email.trim().toLowerCase() && !p.revoked_at);
