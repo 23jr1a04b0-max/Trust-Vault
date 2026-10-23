@@ -360,4 +360,11 @@ test('HTTP authorization: private isolation, Read versus Download, approval and 
   const tamperedText=await tamperedAudit.text();
   assert.equal(tamperedAudit.status,500,tamperedText);
   assert.equal(JSON.parse(tamperedText).valid,false,'audit verification must detect database-only event tampering');
+  const truncationDb=new DatabaseSync(join(temp,'data','trustvault.sqlite'));
+  truncationDb.prepare('DELETE FROM audit WHERE seq=(SELECT MAX(seq) FROM audit)').run();
+  truncationDb.close();
+  const truncatedAudit=await request(admin,'/api/audit/verify',{method:'POST',body:'{}'});
+  const truncatedText=await truncatedAudit.text();
+  assert.equal(truncatedAudit.status,500,truncatedText);
+  assert.equal(JSON.parse(truncatedText).reason,'audit_checkpoint_mismatch','audit verification must detect tail deletion against the local checkpoint');
 });
