@@ -145,11 +145,24 @@ function currentUser(req) {
   run('UPDATE sessions SET last_seen_at=? WHERE id_hash=?',current,tokenHash);
   return {...u,csrf:s.csrf,sessionHash:tokenHash};
 }
+function configuredProductionOrigins() {
+  if(process.env.NODE_ENV!=='production') return [];
+  const values=(process.env.TRUSTED_ORIGINS||'').split(',').map(v=>v.trim()).filter(Boolean);
+  if(!values.length) throw new Error('Production requires TRUSTED_ORIGINS containing one or more exact HTTPS origins.');
+  for(const value of values) {
+    let parsed;
+    try { parsed=new URL(value); } catch { throw new Error('Each TRUSTED_ORIGINS entry must be a valid HTTPS origin without a path.'); }
+    if(parsed.protocol!=='https:' || parsed.origin!==value || parsed.username || parsed.password || parsed.pathname!=='/' || parsed.search || parsed.hash) {
+      throw new Error('Each TRUSTED_ORIGINS entry must be an exact HTTPS origin such as https://vault.example.com, without a path, query, or trailing slash.');
+    }
+  }
+  return new Set(values);
+}
+const TRUSTED_ORIGINS=configuredProductionOrigins();
 function productionOriginAllowed(req) {
   if(process.env.NODE_ENV!=='production') return true;
-  const configured=(process.env.TRUSTED_ORIGINS||'').split(',').map(v=>v.trim()).filter(Boolean);
   const origin=req.headers.origin;
-  return configured.length>0 && typeof origin==='string' && configured.includes(origin);
+  return typeof origin==='string' && TRUSTED_ORIGINS.has(origin);
 }
 async function body(req, limit=1024*1024) {
   const chunks=[]; let size=0;
@@ -422,6 +435,12 @@ function parseMultipart(buffer,boundary){
 async function seed(){ if(process.env.NODE_ENV!=='development'||process.env.SEED_DEMO_USERS!=='true') return; const password=process.env.DEMO_SEED_PASSWORD; if(!password||password.length<14) {console.warn('Demo seeding skipped: set DEMO_SEED_PASSWORD to at least 14 characters.');return;} for(const [email,name,role] of [['admin@trustvault.test','Demo Administrator','Administrator'],['owner@trustvault.test','Demo Owner','DocumentOwner'],['viewer@trustvault.test','Demo Viewer','Viewer']]) { if(q('SELECT id FROM users WHERE email=?',email)) continue; const p=await hashPassword(password); run('INSERT INTO users(id,email,display_name,role,password_hash,salt,created_at) VALUES(?,?,?,?,?,?,?)',randomUUID(),email,name,role,p.hash,p.salt,now()); } }
 await seed();
 const server=http.createServer(route);
+// Bound slow-header/body and keep-alive resource use for public deployments.
+server.requestTimeout=120_000;
+server.headersTimeout=30_000;
+server.keepAliveTimeout=5_000;
+server.maxHeadersCount=100;
+server.maxRequestsPerSocket=1000;
 const port=Number(process.env.PORT||3000);
 server.listen(port,()=>console.log(`TrustVault listening on http://localhost:${port}`));
 export {server,DB,verifyAudit,hashPassword};
