@@ -6,6 +6,7 @@
 - `db/schema.sql`: SQLite schema for users, sessions, documents, grants, access requests, and audit events.
 - `public/`: static browser interface.
 - `private-files/`: generated-name document storage, outside the public static directory.
+- `Dockerfile` and `compose.yaml`: non-root container image, loopback-only host port, persistent named volumes, read-only container root, dropped Linux capabilities, and a health check.
 - `data/`: local SQLite database and development audit HMAC key. Neither directory should be committed or served publicly.
 
 The application currently uses Node.js built-in `node:sqlite`, which is experimental in Node 22. The current local implementation is a review build, not a recommended multi-instance production architecture.
