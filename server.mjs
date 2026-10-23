@@ -368,7 +368,7 @@ async function route(req,res) {
       if(accessRequestMatch && method==='PATCH') {
         const input=await readJson(req), status=input.status, expiresAt=input.expiresAt ? String(input.expiresAt) : null;
         if(!['Approved','Rejected'].includes(status)) { audit(user.id,'access_request.decide','request',null,'denied','invalid_decision_status',requestId); return json(res,400,{error:'Status must be Approved or Rejected.'}); }
-        if(expiresAt && (!Number.isFinite(Date.parse(expiresAt)) || Date.parse(expiresAt)<=Date.now())) return json(res,400,{error:'Expiry must be a future date and time.'});
+        if(expiresAt && (!Number.isFinite(Date.parse(expiresAt)) || Date.parse(expiresAt)<=Date.now())) { audit(user.id,'access_request.decide','request',requestId,'denied','invalid_grant_expiry',requestId); return json(res,400,{error:'Expiry must be a future date and time.'}); }
         const request= q("SELECT r.*,d.owner_id,d.deleted_at FROM access_requests r JOIN documents d ON d.id=r.document_id WHERE r.id=?",accessRequestMatch[1]);
         if(!request || request.owner_id!==user.id || request.deleted_at || request.status!=='Pending') { audit(user.id,'access_request.decide','request',null,'denied','not_owner_or_not_pending',requestId); return json(res,404,{error:'Pending request not found'}); }
         if(status==='Approved') {
