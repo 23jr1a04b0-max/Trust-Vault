@@ -71,7 +71,7 @@ function codeForStep(secret, step) {
   return String(binary % 1_000_000).padStart(6,'0');
 }
 
-export function verifyTotp(secret, code, { now = Date.now(), window = 1 } = {}) {
+export function generateTotpCode(secret, now = Date.now()) {\n  return codeForStep(secret, Math.floor(now / 30_000));\n}\n\nexport function verifyTotp(secret, code, { now = Date.now(), window = 1 } = {}) {
   const supplied = String(code || '').trim();
   if (!/^\d{6}$/.test(supplied)) return null;
   const currentStep = Math.floor(now / 30_000);
