@@ -1,6 +1,38 @@
 const $ = (id) => document.getElementById(id);
 let csrfToken = '';
 let activeUser = null;
+let selectedRole = null;
+const roleDetails = {
+  DocumentOwner: { title: 'Document Owner sign in', description: 'Sign in to upload documents, choose visibility, and manage sharing permissions.' },
+  Viewer: { title: 'Viewer sign in', description: 'Sign in to access documents shared with your account.' },
+  Administrator: { title: 'Administrator sign in', description: 'Sign in to manage accounts and review security activity.' }
+};
+function showRoleSelection() {
+  selectedRole = null;
+  $('role-panel').hidden = false;
+  $('login-panel').hidden = true;
+  $('signup-panel').hidden = true;
+  $('auth-panel').hidden = false;
+  $('session-status').textContent = 'Secure document workspace';
+}
+function showLoginForRole(role) {
+  if (!roleDetails[role]) return;
+  selectedRole = role;
+  $('role-panel').hidden = true;
+  $('signup-panel').hidden = true;
+  $('login-panel').hidden = false;
+  $('login-title').textContent = roleDetails[role].title;
+  $('login-role-description').textContent = roleDetails[role].description;
+  $('signup-prompt').hidden = role === 'Administrator';
+  $('session-status').textContent = roleDetails[role].title;
+}
+function showSignup() {
+  if (!['DocumentOwner','Viewer'].includes(selectedRole)) return;
+  $('login-panel').hidden = true;
+  $('signup-panel').hidden = false;
+  $('signup-title').textContent = `Create ${selectedRole === 'DocumentOwner' ? 'Document Owner' : 'Viewer'} account`;
+  $('signup-role-description').textContent = selectedRole === 'DocumentOwner' ? 'Owner accounts can upload documents and manage their own sharing permissions.' : 'Viewer accounts can access documents only when their owners grant permission.';
+}
 
 function notice(message, kind = '') {
   const el = $('notice');
@@ -80,7 +112,7 @@ function showSignedOut() {
   csrfToken = '';
   $('auth-panel').hidden = false;
   $('app-panel').hidden = true;
-  $('session-status').textContent = 'Secure document workspace';
+  showRoleSelection();
 }
 async function loadDocuments() {
   const list = $('document-list');
@@ -201,17 +233,40 @@ async function loadDocuments() {
     notice(error.message, 'error');
   }
 }
+document.querySelectorAll('[data-role]').forEach(option => option.addEventListener('click', () => showLoginForRole(option.dataset.role)));
+$('change-role').addEventListener('click', showRoleSelection);
+$('show-signup').addEventListener('click', showSignup);
+$('show-login').addEventListener('click', () => showLoginForRole(selectedRole || 'Viewer'));
 $('login-form').addEventListener('submit', async event => {
   event.preventDefault();
   notice('');
+  if (!selectedRole) { notice('Choose a role before signing in.', 'error'); return; }
   const form = new FormData(event.currentTarget);
   try {
     const data = await api('/api/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ email: form.get('email'), password: form.get('password') })
+      body: JSON.stringify({ email: form.get('email'), password: form.get('password'), role: selectedRole })
     });
     showAuthenticated(data.user, data.csrfToken);
     notice('Signed in successfully.', 'success');
+  } catch (error) { notice(error.message, 'error'); }
+});
+$('signup-form').addEventListener('submit', async event => {
+  event.preventDefault();
+  notice('');
+  if (!['DocumentOwner','Viewer'].includes(selectedRole)) { notice('Choose Document Owner or Viewer to create an account.', 'error'); return; }
+  const form = new FormData(event.currentTarget);
+  try {
+    await api('/api/auth/signup', { method: 'POST', body: JSON.stringify({
+      name: String(form.get('name') || '').trim(),
+      email: String(form.get('email') || '').trim(),
+      password: form.get('password'),
+      role: selectedRole
+    }) });
+    event.currentTarget.reset();
+    showLoginForRole(selectedRole);
+    $('email').value = String(form.get('email') || '').trim();
+    notice('Account created. Sign in with your new email and password.', 'success');
   } catch (error) { notice(error.message, 'error'); }
 });
 $('logout-button').addEventListener('click', async () => {
