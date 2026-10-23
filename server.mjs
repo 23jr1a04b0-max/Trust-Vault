@@ -149,7 +149,7 @@ function hasDocAccess(user, doc, capability='Read') {
   if(!user||!doc||doc.deleted_at) return false;
   if(doc.owner_id===user.id) return true;
   const g=q('SELECT permission,expires_at FROM grants WHERE document_id=? AND user_id=? AND revoked_at IS NULL',doc.id,user.id);
-  if(!g || (g.expires_at && Date.parse(g.expires_at)<=Date.now())) return false;
+  if(!g || (g.expires_at && (!Number.isFinite(Date.parse(g.expires_at)) || Date.parse(g.expires_at)<=Date.now()))) return false;
   if(capability==='Download') return g.permission==='Download' || g.permission==='Edit';
   if(capability==='Edit') return g.permission==='Edit';
   return g.permission==='Read' || g.permission==='Download' || g.permission==='Edit';
@@ -203,7 +203,7 @@ async function route(req,res) {
         const contentType=req.headers['content-type']||''; if(!contentType.startsWith('multipart/form-data; boundary=')) { audit(user.id,'document.upload','collection',null,'denied','unsupported_upload_content_type',requestId); return json(res,415,{error:'Expected multipart form data'}); }
         const raw=await body(req,MAX_UPLOAD+128*1024); const boundary=contentType.split('boundary=')[1]; if(!boundary||boundary.length>200) { audit(user.id,'document.upload','collection',null,'denied','invalid_upload_boundary',requestId); return json(res,400,{error:'Invalid upload boundary'}); }
         const parsed=parseMultipart(raw,boundary); const file=parsed.file; if(!file) { audit(user.id,'document.upload','collection',null,'denied','missing_upload_file',requestId); return json(res,400,{error:'Choose a file to upload'}); }
-        const original=basename(file.filename).replace(/[\x00-\x1f\x7f]/g,'').trim(); const ext=extname(original).toLowerCase();
+        const original=basename(file.filename.replace(/\\\\/g,'/')).replace(/[\x00-\x1f\x7f]/g,'').trim(); const ext=extname(original).toLowerCase();
         if(!original||original.length>180||!allowed.has(ext)||file.data.length>MAX_UPLOAD||!validSignature(ext,file.data)||!file.contentType||file.contentType.toLowerCase()!==allowed.get(ext)) { audit(user.id,'document.upload','document',null,'denied','upload_validation_failed',requestId); return json(res,400,{error:'Unsupported, malformed, or oversized file. Allowed: PDF, TXT, PNG, JPG.'}); }
         const key=randomBytes(32).toString('hex'); const id=randomUUID(); const category=String(parsed.fields.category||'General').slice(0,80); const visibility=['Public','Private'].includes(parsed.fields.visibility)?parsed.fields.visibility:'Private';
         await new Promise((resolvePromise,reject)=>{const s=createWriteStream(join(PRIVATE,key),{flags:'wx',mode:0o600});s.on('error',reject);s.end(file.data,resolvePromise)});
