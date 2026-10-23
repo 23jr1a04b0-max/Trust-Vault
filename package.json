@@ -9,7 +9,7 @@
     "dev": "node --env-file=.env server.mjs",
     "test": "node --test",
     "test:mutation": "node tests/mutation-check.mjs",
-    "check": "node --check server.mjs && node --check clamav.mjs && node --check audit-sink.mjs && node --check tests/audit-sink.test.mjs && node --check tests/proxy-config.test.mjs && node --check tests/clamav.test.mjs && node --check public/app.js && node --check scripts/setup.mjs && node --check scripts/create-admin.mjs && node --check tests/create-admin.test.mjs && node --check tests/security.test.mjs && node --check tests/production-origin.test.mjs && node --check tests/production-origin-runtime.test.mjs && node --check tests/mutation-check.mjs && node --check tests/integration.test.mjs && node --test && node tests/mutation-check.mjs",
+    "check": "node --check server.mjs && node --check clamav.mjs && node --check audit-sink.mjs && node --check mfa.mjs && node --check tests/mfa.test.mjs && node --check tests/audit-sink.test.mjs && node --check tests/proxy-config.test.mjs && node --check tests/clamav.test.mjs && node --check public/app.js && node --check scripts/setup.mjs && node --check scripts/create-admin.mjs && node --check tests/create-admin.test.mjs && node --check tests/security.test.mjs && node --check tests/production-origin.test.mjs && node --check tests/production-origin-runtime.test.mjs && node --check tests/mutation-check.mjs && node --check tests/integration.test.mjs && node --test && node tests/mutation-check.mjs",
     "setup": "node scripts/setup.mjs"
   },
   "engines": {
