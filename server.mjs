@@ -223,11 +223,13 @@ async function route(req,res) {
         if(action==='permissions' && method==='POST') {
           if(!d || d.owner_id!==user.id) {audit(user.id,'permission.grant','document',null,'denied','not_owner_or_not_found',requestId);return json(res,404,{error:'Document not found'});}
           const input=await readJson(req), target=q('SELECT id,role FROM users WHERE email=? AND disabled=0',String(input.email||'').trim().toLowerCase()); const permission=input.permission;
+          const expiresAt=input.expiresAt ? String(input.expiresAt) : null;
+          if(expiresAt && (!Number.isFinite(Date.parse(expiresAt)) || Date.parse(expiresAt)<=Date.now())) return json(res,400,{error:'Expiry must be a future date and time.'});
           if(!target||target.id===user.id||!['Read','Download','Edit'].includes(permission)) { audit(user.id,'permission.grant','document',id,'denied','invalid_target_or_permission',requestId); return json(res,400,{error:'Choose an existing user and Read, Download, or Edit permission.'}); }
           const prior=q('SELECT * FROM grants WHERE document_id=? AND user_id=?',id,target.id);
-          if(prior) run('UPDATE grants SET permission=?,granted_by=?,created_at=?,revoked_at=NULL,expires_at=NULL WHERE document_id=? AND user_id=?',permission,user.id,now(),id,target.id);
-          else run('INSERT INTO grants(document_id,user_id,permission,granted_by,created_at) VALUES(?,?,?,?,?)',id,target.id,permission,user.id,now());
-          audit(user.id,'permission.grant','document',id,'success',permission,requestId); return json(res,201,{ok:true});
+          if(prior) run('UPDATE grants SET permission=?,granted_by=?,created_at=?,revoked_at=NULL,expires_at=? WHERE document_id=? AND user_id=?',permission,user.id,now(),expiresAt,id,target.id);
+          else run('INSERT INTO grants(document_id,user_id,permission,granted_by,created_at,expires_at) VALUES(?,?,?,?,?,?)',id,target.id,permission,user.id,now(),expiresAt);
+          audit(user.id,'permission.grant','document',id,'success',permission+(expiresAt?':expires:'+expiresAt:':no_expiry'),requestId); return json(res,201,{ok:true,expiresAt});
         }
         if(action==='permissions' && method==='DELETE') {
           if(!d || d.owner_id!==user.id) {audit(user.id,'permission.revoke','document',null,'denied','not_owner_or_not_found',requestId);return json(res,404,{error:'Document not found'});}
