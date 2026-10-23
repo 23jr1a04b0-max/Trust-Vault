@@ -114,8 +114,12 @@ test('HTTP authorization: private isolation, Read versus Download, approval and 
   let listing = await (await request(viewer, '/api/documents')).json();
   assert.ok(!listing.documents.some(doc => doc.id === privateDoc.id), 'private document metadata must not be discoverable');
 
+  const invalidExpiry = await request(owner, `/api/documents/${privateDoc.id}/permissions`, {
+    method:'POST', body:JSON.stringify({email:'viewer@trustvault.test',permission:'Read',expiresAt:new Date(Date.now()-1000).toISOString()})
+  });
+  assert.equal(invalidExpiry.status,400,'owner grants must reject an expiry in the past');
   let share = await request(owner, `/api/documents/${privateDoc.id}/permissions`, {
-    method: 'POST', body: JSON.stringify({ email: 'viewer@trustvault.test', permission: 'Read' })
+    method: 'POST', body: JSON.stringify({ email: 'viewer@trustvault.test', permission: 'Read', expiresAt:new Date(Date.now()+60_000).toISOString() })
   });
   assert.equal(share.status, 201, await share.text());
   listing = await (await request(viewer, '/api/documents')).json();
