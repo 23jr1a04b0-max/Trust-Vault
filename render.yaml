@@ -1,0 +1,40 @@
+# Render Blueprint for TrustVault.
+# Before deploying, configure the required secrets in the Render dashboard.
+services:
+  - type: pserv
+    name: trustvault-clamav
+    runtime: image
+    image:
+      url: docker.io/clamav/clamav:stable
+    plan: starter
+    healthCheckPath: /
+  - type: web
+    name: trustvault-backend
+    runtime: docker
+    plan: starter
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "3000"
+      - key: CLAMAV_HOST
+        value: trustvault-clamav
+      - key: CLAMAV_PORT
+        value: "3310"
+      - key: TRUSTED_ORIGINS
+        sync: false
+      - key: AUDIT_HMAC_KEY
+        generateValue: true
+      - key: AUDIT_SINK_URL
+        sync: false
+      - key: AUDIT_SINK_TOKEN
+        sync: false
+      - key: MFA_ENCRYPTION_KEY
+        generateValue: true
+    disk:
+      name: trustvault-data
+      mountPath: /app/data
+      sizeGB: 1
