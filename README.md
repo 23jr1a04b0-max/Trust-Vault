@@ -54,7 +54,7 @@ npm test
 npm run check
 ```
 
-The HTTP integration test uses a disposable local server and currently verifies private-document metadata isolation, Read-versus-Download enforcement, revocation, public metadata discovery, duplicate pending-request rejection, and owner approval. Static tests check required files/schema/configuration. The mutation check removes the download authorization guard in a temporary copy and requires the integration test to fail specifically because Read-only access can download. Session expiry, full CSRF/Origin behavior, broad upload attack cases, admin boundaries, audit tampering, and every route still need dedicated runtime tests.
+The HTTP integration test uses a disposable local server and verifies private-document metadata isolation, administrator content boundaries, Read-versus-Download and Read-versus-Edit separation, grant expiry, revocation, public metadata discovery, duplicate pending-request rejection, repeated requests after decisions, owner approval, upload parser rejection cases, CSRF enforcement, login rate limiting, account disable/session invalidation, logout, and audit-chain consistency. The mutation check removes the download authorization guard in a temporary copy and requires the integration test to fail specifically because Read-only access can download. Production Origin enforcement, idle/absolute session expiry, file-format parser attacks, audit tampering/truncation, concurrent streaming revocation, and every remaining route still need dedicated runtime tests.
 
 Passing these tests is not a penetration test or a production certification.
 
