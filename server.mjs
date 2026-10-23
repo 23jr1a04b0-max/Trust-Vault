@@ -206,10 +206,10 @@ async function route(req,res) {
         // Perform a password-hash operation even when the account does not exist to reduce timing-based enumeration.
         const passwordMatches=u ? await verifyPassword(password,u) : await verifyPassword(password,dummyPasswordRecord);
         const ok=!!u && !u.disabled && passwordMatches;
-        audit(ok?u.id:null,'auth.login','user',ok?u.id:null,ok?'success':'denied','invalid_credentials_or_account_unavailable',requestId);
-        if(!ok) return json(res,401,{error:'Email or password is incorrect.'});
-        if(u.role==='DocumentOwner' && u.approval_status!=='Approved') { audit(u.id,'auth.login.pending_owner','user',u.id,'denied','owner_account_'+String(u.approval_status||'Pending').toLowerCase(),requestId); return json(res,403,{error:u.approval_status==='Rejected'?'Your owner account request was rejected. Contact the administrator.':'Your owner account is awaiting administrator approval.'}); }
-        if(!['Administrator','DocumentOwner','Viewer'].includes(requestedRole) || requestedRole!==u.role) return json(res,403,{error:'This account does not match the selected role. Choose the role assigned to your account.'});
+        if(!ok) { audit(null,'auth.login','user',null,'denied','invalid_credentials_or_account_unavailable',requestId); return json(res,401,{error:'Email or password is incorrect.'}); }
+        if(u.role==='DocumentOwner' && u.approval_status!=='Approved') { audit(u.id,'auth.login','user',u.id,'denied','owner_account_'+String(u.approval_status||'Pending').toLowerCase(),requestId); return json(res,403,{error:u.approval_status==='Rejected'?'Your owner account request was rejected. Contact the administrator.':'Your owner account is awaiting administrator approval.'}); }
+        if(!['Administrator','DocumentOwner','Viewer'].includes(requestedRole) || requestedRole!==u.role) { audit(u.id,'auth.login','user',u.id,'denied','selected_role_mismatch',requestId); return json(res,403,{error:'This account does not match the selected role. Choose the role assigned to your account.'}); }
+        audit(u.id,'auth.login','user',u.id,'success','credentials_and_role_valid',requestId);
         // Rotate the browser session at login and invalidate any prior session cookie.
         const priorToken=cookies(req).tv_session; if(priorToken) run('DELETE FROM sessions WHERE id_hash=?',sha(priorToken));
         const token=randomBytes(32).toString('base64url'), csrf=randomBytes(24).toString('base64url'), created=Date.now(), expires=created+ABSOLUTE_SESSION_MS;
