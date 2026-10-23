@@ -231,6 +231,15 @@ test('HTTP authorization: private isolation, Read versus Download, approval and 
   const downloadApproval = await request(owner,`/api/access-requests/${thirdAccessRequest.id}`,{method:'PATCH',body:JSON.stringify({status:'Approved'})});
   assert.equal(downloadApproval.status,200,await downloadApproval.text());
   assert.equal((await request(viewer,`/api/documents/${publicDoc.id}/download`)).status,200,'Download approval should enable the download endpoint');
+  const rejectedDoc=await upload(owner,'Public','rejected-request.txt');
+  const rejectedRequest=await request(viewer,'/api/documents/'+rejectedDoc.id+'/requests',{method:'POST',body:JSON.stringify({permission:'Read'})});
+  assert.equal(rejectedRequest.status,201,await rejectedRequest.text());
+  const rejectedQueue=await (await request(owner,'/api/access-requests')).json();
+  const rejection=rejectedQueue.requests.find(item=>item.document_id===rejectedDoc.id&&item.requester_id===viewer.user.id);
+  assert.ok(rejection,'owner should see the request before rejecting it');
+  const rejectResult=await request(owner,'/api/access-requests/'+rejection.id,{method:'PATCH',body:JSON.stringify({status:'Rejected'})});
+  assert.equal(rejectResult.status,200,await rejectResult.text());
+  assert.equal((await request(viewer,'/api/documents/'+rejectedDoc.id+'/content')).status,404,'rejected request must not grant content access');
   const sessionDb=new DatabaseSync(join(temp,'data','trustvault.sqlite'));
   sessionDb.prepare('UPDATE sessions SET last_seen_at=? WHERE user_id=?').run(Date.now()-31*60*1000,viewer.user.id);
   sessionDb.close();
