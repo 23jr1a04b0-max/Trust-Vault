@@ -62,12 +62,61 @@ function button(label, action, secondary = true) {
   node.addEventListener('click', action);
   return node;
 }
+function setNotificationCount(count) {
+  const badge=$('notification-count');
+  const value=Math.max(0,Number(count)||0);
+  badge.textContent=value>99?'99+':String(value);
+  badge.hidden=value===0;
+  $('notifications-toggle').setAttribute('aria-label',value?('Open notifications, '+value+' unread'):'Open notifications');
+}
+async function loadNotifications(markViewed=false) {
+  const list=$('notification-list');
+  try {
+    const data=await api('/api/notifications');
+    list.replaceChildren();
+    if(!data.notifications.length) list.append(el('p','muted','You have no notifications yet.'));
+    for(const item of data.notifications) {
+      const card=el('article','notification-item'+(item.readAt?' read':' unread'));
+      const heading=el('div','notification-heading');
+      heading.append(el('h3','',item.title));
+      if(!item.readAt) heading.append(el('span','notification-unread-label','Unread'));
+      card.append(heading);
+      card.append(el('p','',item.message));
+      card.append(el('p','muted notification-time',new Date(item.createdAt).toLocaleString()));
+      list.append(card);
+    }
+    if(markViewed && data.unreadCount>0) {
+      await api('/api/notifications/read-all',{method:'POST',body:'{}'});
+      setNotificationCount(0);
+      list.querySelectorAll('.notification-item.unread').forEach(card=>{
+        card.classList.remove('unread');card.classList.add('read');
+        const label=card.querySelector('.notification-unread-label');
+        if(label) label.remove();
+      });
+    } else setNotificationCount(data.unreadCount);
+  } catch(error) {
+    if(list) list.replaceChildren(el('p','',error.message));
+  }
+}
+function toggleNotifications(forceOpen) {
+  const panel=$('notifications-panel');
+  const opening=typeof forceOpen==='boolean'?forceOpen:panel.hidden;
+  panel.hidden=!opening;
+  $('notifications-toggle').setAttribute('aria-expanded',String(opening));
+  if(opening) loadNotifications(true);
+}
 function showAuthenticated(user, token) {
   activeUser = user;
   csrfToken = token || '';
   $('auth-panel').hidden = true;
   $('app-panel').hidden = false;
-  $('session-status').textContent = `Signed in as ${user.name} (${user.role})`;
+  $('session-status').textContent = `Signed in as ${user.role}`;
+  $('topbar-user').hidden = false;
+  $('profile-name').textContent = user.name;
+  $('notifications-panel').hidden = true;
+  $('notifications-toggle').setAttribute('aria-expanded','false');
+  setNotificationCount(0);
+  loadNotifications(false);
   $('welcome-title').textContent = `Welcome, ${user.name}`;
   $('welcome-subtitle').textContent = user.email;
   $('upload-panel').hidden = user.role !== 'DocumentOwner';
@@ -110,6 +159,9 @@ async function loadAccessRequests() {
 function showSignedOut() {
   activeUser = null;
   csrfToken = '';
+  $('topbar-user').hidden = true;
+  $('notifications-panel').hidden = true;
+  setNotificationCount(0);
   $('auth-panel').hidden = false;
   $('app-panel').hidden = true;
   showRoleSelection();
@@ -293,6 +345,8 @@ $('upload-form').addEventListener('submit', async event => {
   } catch (error) { notice(error.message, 'error'); }
 });
 $('refresh-button').addEventListener('click', loadDocuments);
+$('notifications-toggle').addEventListener('click',()=>toggleNotifications());
+$('notifications-refresh').addEventListener('click',()=>loadNotifications(true));
 $('audit-refresh').addEventListener('click', async () => {
   try {
     const data = await api('/api/audit');
@@ -354,3 +408,5 @@ $('year').textContent = String(new Date().getFullYear());
     showAuthenticated(data.user, data.csrfToken);
   } catch { showSignedOut(); }
 })();
+
+setInterval(() => { if(activeUser) loadNotifications(false); }, 30000);
