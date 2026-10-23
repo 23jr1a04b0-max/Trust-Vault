@@ -63,3 +63,21 @@ test('production HTTP origin checks and Secure session cookie',async t=>{
   const logout=await fetch(base+'/api/auth/logout',{method:'POST',headers:{origin:trustedOrigin,cookie:cookie.split(';')[0],'x-csrf-token':data.csrfToken,'content-type':'application/json'},body:'{}'});
   assert.equal(logout.status,204,'trusted-origin logout with CSRF token should succeed');
 });
+
+
+test('production refuses malformed trusted-origin configuration',async t=>{
+  const temp=mkdtempSync(join(tmpdir(),'trustvault-invalid-origin-'));
+  for(const path of ['server.mjs','db/schema.sql']){
+    const dest=join(temp,path);mkdirSync(dirname(dest),{recursive:true});copyFileSync(join(root,path),dest);
+  }
+  const child=spawn(process.execPath,['server.mjs'],{cwd:temp,env:{...process.env,NODE_ENV:'production',PORT:'0',AUDIT_HMAC_KEY:'test-only-audit-key-with-at-least-32-bytes',TRUSTED_ORIGINS:'https://vault.example.test/unsafe-path'},stdio:['ignore','pipe','pipe']});
+  let output='';child.stdout.on('data',c=>output+=c.toString());child.stderr.on('data',c=>output+=c.toString());
+  const code=await new Promise((resolve,reject)=>{
+    const timer=setTimeout(()=>{child.kill('SIGKILL');reject(new Error('Server did not reject malformed TRUSTED_ORIGINS configuration'));},5000);
+    child.once('error',error=>{clearTimeout(timer);reject(error);});
+    child.once('exit',value=>{clearTimeout(timer);resolve(value);});
+  });
+  t.after(()=>rmSync(temp,{recursive:true,force:true}));
+  assert.notEqual(code,0,'invalid production origin configuration must prevent startup');
+  assert.match(output,/exact HTTPS origin|TRUSTED_ORIGINS/);
+});
