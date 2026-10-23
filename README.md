@@ -35,6 +35,22 @@ node --env-file=.env server.mjs
 
 Open `http://localhost:3000`.
 
+## Run with Docker Compose
+
+Docker and the Docker Compose plugin are required. For a production-style container, copy the example environment file and set the real trusted HTTPS origin and a fresh audit key. Do not commit the resulting .env file.
+
+```bash
+cp .env.example .env
+openssl rand -hex 32
+# Paste the generated value into AUDIT_HMAC_KEY in .env.
+# Set TRUSTED_ORIGINS to your exact HTTPS origin.
+docker compose up --build -d
+docker compose ps
+docker compose logs --tail=100 trustvault
+```
+
+Compose binds the app to host loopback at port 3000 and stores database/audit state and uploaded files in persistent named volumes. Configure a TLS reverse proxy before using a public domain. See the [deployment guide](docs/DEPLOYMENT.md) for backup and production notes.
+
 ## Local demo accounts
 
 No accounts are created unless development seeding is explicitly enabled. For synthetic local testing only, edit `.env` and set `NODE_ENV=development`, `SEED_DEMO_USERS=true`, and `DEMO_SEED_PASSWORD` to a unique password of at least 14 characters. Then run `node --env-file=.env server.mjs`. In PowerShell, use `npm.cmd run setup` and `npm.cmd run check` if the `npm` command is blocked by script execution policy.
