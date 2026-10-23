@@ -129,6 +129,7 @@ function hasDocAccess(user, doc, capability='Read') {
   const g=q('SELECT permission,expires_at FROM grants WHERE document_id=? AND user_id=? AND revoked_at IS NULL',doc.id,user.id);
   if(!g || (g.expires_at && Date.parse(g.expires_at)<=Date.now())) return false;
   if(capability==='Download') return g.permission==='Download' || g.permission==='Edit';
+  if(capability==='Edit') return g.permission==='Edit';
   return g.permission==='Read' || g.permission==='Download' || g.permission==='Edit';
 }
 function requireCsrf(req,user) { if(!user || !req.headers['x-csrf-token'] || !safeEqual(String(req.headers['x-csrf-token']),user.csrf)) throw Object.assign(new Error('CSRF validation failed'),{status:403}); }
@@ -199,7 +200,7 @@ async function route(req,res) {
           const input=await readJson(req), target=q('SELECT id,role FROM users WHERE email=? AND disabled=0',String(input.email||'').trim().toLowerCase()); const permission=input.permission;
           if(!target||target.id===user.id||!['Read','Download','Edit'].includes(permission)) { audit(user.id,'permission.grant','document',id,'denied','invalid_target_or_permission',requestId); return json(res,400,{error:'Choose an existing user and Read, Download, or Edit permission.'}); }
           const prior=q('SELECT * FROM grants WHERE document_id=? AND user_id=?',id,target.id);
-          if(prior) run('UPDATE grants SET permission=?,granted_by=?,created_at=?,revoked_at=NULL WHERE document_id=? AND user_id=?',permission,user.id,now(),id,target.id);
+          if(prior) run('UPDATE grants SET permission=?,granted_by=?,created_at=?,revoked_at=NULL,expires_at=NULL WHERE document_id=? AND user_id=?',permission,user.id,now(),id,target.id);
           else run('INSERT INTO grants(document_id,user_id,permission,granted_by,created_at) VALUES(?,?,?,?,?)',id,target.id,permission,user.id,now());
           audit(user.id,'permission.grant','document',id,'success',permission,requestId); return json(res,201,{ok:true});
         }
