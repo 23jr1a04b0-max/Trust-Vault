@@ -15,7 +15,7 @@ This is a working threat register. Verification status reflects the automated te
 | Audit modification | HMAC-SHA256 chained events; production key configured separately | HTTP tests verify chain consistency after normal and denied operations | Add runtime tamper/truncation tests and externally immutable checkpoints |
 | Administrator privilege escalation | Admin account endpoints check Administrator role; admin role alone does not grant document-content access | HTTP test checks administrator cannot access private document content without a grant and can use audit verification | Add full admin endpoint matrix and denied-event assertions |
 | SQL injection and stored XSS | Prepared statements for user input and DOM textContent for displayed data | Code review only | Add payload tests, security scanning, and dependency/runtime review |
-| Production Origin bypass | Mutating requests require exact configured Origin in production | Current production-origin test checks source/configuration patterns, not full HTTP behavior | Add runtime tests for missing, wrong, and allowed origins behind the target proxy |
+| Production Origin bypass | Mutating requests require exact configured Origin in production | Production-mode HTTP test confirms missing and wrong Origin are rejected, trusted Origin reaches authentication, and the session cookie is Secure/HttpOnly/SameSite=Strict | Verify behavior behind the actual production proxy and configured domain |
 
 ## Deployment blockers
 
