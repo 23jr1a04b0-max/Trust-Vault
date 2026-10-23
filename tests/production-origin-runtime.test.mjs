@@ -32,7 +32,7 @@ async function waitReady(base,child,readOutput){
 
 test('production HTTP origin checks and Secure session cookie',async t=>{
   const temp=mkdtempSync(join(tmpdir(),'trustvault-origin-'));
-  for(const path of ['server.mjs','clamav.mjs','db/schema.sql']){
+  for(const path of ['server.mjs','clamav.mjs','audit-sink.mjs','db/schema.sql']){
     const dest=join(temp,path);mkdirSync(dirname(dest),{recursive:true});copyFileSync(join(root,path),dest);
   }
   mkdirSync(join(temp,'data'),{recursive:true});
@@ -67,7 +67,7 @@ test('production HTTP origin checks and Secure session cookie',async t=>{
 
 test('production refuses malformed trusted-origin configuration',async t=>{
   const temp=mkdtempSync(join(tmpdir(),'trustvault-invalid-origin-'));
-  for(const path of ['server.mjs','clamav.mjs','db/schema.sql']){
+  for(const path of ['server.mjs','clamav.mjs','audit-sink.mjs','db/schema.sql']){
     const dest=join(temp,path);mkdirSync(dirname(dest),{recursive:true});copyFileSync(join(root,path),dest);
   }
   const child=spawn(process.execPath,['server.mjs'],{cwd:temp,env:{...process.env,NODE_ENV:'production',PORT:'0',AUDIT_HMAC_KEY:'test-only-audit-key-with-at-least-32-bytes',AUDIT_SINK_URL:'https://audit.example.test/ingest',AUDIT_SINK_TOKEN:'test-only-audit-sink-token-with-at-least-32-bytes',TRUSTED_ORIGINS:'https://vault.example.test/unsafe-path'},stdio:['ignore','pipe','pipe']});
