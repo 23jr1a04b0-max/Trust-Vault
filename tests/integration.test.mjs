@@ -111,6 +111,8 @@ test('HTTP authorization: private isolation, Read versus Download, approval and 
   const duplicateSignup=await fetch(base+'/api/auth/signup',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({name:'Duplicate',email:'new-owner@trustvault.test',password:'Long-Enough-Test-Pass-123',role:'DocumentOwner'})});
   assert.equal(duplicateSignup.status,409,'duplicate email sign-up must be rejected');
   const admin = await login('admin@trustvault.test');
+  const adminNotifications=(await request(admin,'/api/notifications')).json ? await (await request(admin,'/api/notifications')).json() : null;
+  assert.ok(adminNotifications.notifications.some(n=>n.type==='owner-registration'),'administrators should receive owner-registration notifications');
   const viewerApprovalAttempt=await request(viewer,'/api/users/'+signupOwnerData.userId,{method:'PATCH',body:JSON.stringify({approvalStatus:'Approved'})});
   assert.equal(viewerApprovalAttempt.status,403,'viewers must not approve owner registrations');
   const pendingOwnerLogin=await fetch(base+'/api/auth/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email:'new-owner@trustvault.test',password:'Long-Enough-Test-Pass-123',role:'DocumentOwner'})});
@@ -122,6 +124,10 @@ test('HTTP authorization: private isolation, Read versus Download, approval and 
   assert.equal(approvedOwnerLogin.status,200,'approved owner should be allowed to sign in');
   const approvedOwnerCookie=approvedOwnerLogin.headers.get('set-cookie');
   assert.ok(approvedOwnerCookie,'approved owner should receive a session');
+  const approvedOwnerLoginData=await approvedOwnerLogin.json();
+  const approvedOwnerSession={cookie:approvedOwnerCookie.split(';')[0],csrf:approvedOwnerLoginData.csrfToken,user:approvedOwnerLoginData.user};
+  const ownerNotifications=(await request(approvedOwnerSession,'/api/notifications')).json ? await (await request(approvedOwnerSession,'/api/notifications')).json() : null;
+  assert.ok(ownerNotifications.notifications.some(n=>n.type==='owner-account-status' && /approved/i.test(n.title)),'owner should receive in-app approval notification');
   const ownerSessionDb=new DatabaseSync(join(temp,'data','trustvault.sqlite'));
   ownerSessionDb.prepare("UPDATE users SET approval_status='Rejected' WHERE id=?").run(signupOwnerData.userId);
   const revokedApprovalSession=await fetch(base+'/api/documents',{headers:{cookie:approvedOwnerCookie.split(';')[0]}});
@@ -242,6 +248,10 @@ test('HTTP authorization: private isolation, Read versus Download, approval and 
   assert.equal(listing.documents.find(doc => doc.id === publicDoc.id)?.accessPermission, 'Public listing');
   const requestAccess = await request(viewer, `/api/documents/${publicDoc.id}/requests`, { method: 'POST', body: JSON.stringify({ permission: 'Read' }) });
   assert.equal(requestAccess.status, 201, await requestAccess.text());
+  const ownerRequestNotifications=await (await request(owner,'/api/notifications')).json();
+  assert.ok(ownerRequestNotifications.notifications.some(n=>n.type==='document-access-request' && /public\.txt/.test(n.message)),'owner should receive document request notification');
+  const viewerBeforeDecision=await (await request(viewer,'/api/notifications')).json();
+  assert.ok(!viewerBeforeDecision.notifications.some(n=>n.type==='document-access-request'),'notifications must be scoped to their recipient');
   const duplicate = await request(viewer, `/api/documents/${publicDoc.id}/requests`, { method: 'POST', body: JSON.stringify({ permission: 'Read' }) });
   assert.equal(duplicate.status, 409, 'duplicate pending requests must be blocked');
   const pending = await (await request(owner, '/api/access-requests')).json();
@@ -251,6 +261,13 @@ test('HTTP authorization: private isolation, Read versus Download, approval and 
     method: 'PATCH', body: JSON.stringify({ status: 'Approved' })
   });
   assert.equal(approve.status, 200, await approve.text());
+  const viewerDecisionNotifications=await (await request(viewer,'/api/notifications')).json();
+  assert.ok(viewerDecisionNotifications.notifications.some(n=>n.type==='document-access-decision' && /approved/i.test(n.title)),'viewer should be notified when the owner approves access');
+  const markViewed=await request(viewer,'/api/notifications/read-all',{method:'POST',body:'{}'});
+  assert.equal(markViewed.status,200,await markViewed.text());
+  const afterViewed=await (await request(viewer,'/api/notifications')).json();
+  assert.equal(afterViewed.unreadCount,0,'opening notifications should clear the unread count');
+  assert.ok(afterViewed.notifications.filter(n=>n.type==='document-access-decision').every(n=>n.readAt),'viewed notifications should be marked read');
   content = await request(viewer, `/api/documents/${publicDoc.id}/content`);
   assert.equal(content.status, 200, 'approved Read request should grant inline viewing');
   assert.equal((await request(viewer, `/api/documents/${publicDoc.id}/download`)).status, 404);
