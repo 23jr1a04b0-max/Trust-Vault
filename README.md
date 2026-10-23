@@ -45,7 +45,7 @@ Open `http://localhost:3000`.
 
 ## Run with Docker Compose
 
-Docker and the Docker Compose plugin are required. For a production-style container, copy the example environment file and set the real trusted HTTPS origin, a fresh audit key, and an independently administered HTTPS append-only audit receiver URL/token. The receiver is mandatory in production; a placeholder URL is only for CI tests. Do not commit the resulting .env file.
+Docker and the Docker Compose plugin are required. For a production-style container, copy the example environment file and set the real trusted HTTPS origin, a fresh audit key, a separate MFA encryption key, and an independently administered HTTPS append-only audit receiver URL/token. The receiver is mandatory in production; a placeholder URL is only for CI tests. Do not commit the resulting .env file.
 
 ```bash
 cp .env.example .env
@@ -63,7 +63,7 @@ Compose binds the app to host loopback at port 3000 and stores database/audit st
 
 ## Initial production administrator
 
-Production disables demo seeding and public administrator registration. After starting the healthy Compose stack, create the first Administrator once using the audited bootstrap script. Follow [the deployment instructions](docs/DEPLOYMENT.md) to enter the email, display name, and password as shell variables and run `docker compose exec ... node scripts/create-admin.mjs`. The script refuses to add a second Administrator, requires the production audit configuration, stores only a password hash, and records the bootstrap in the audit chain/outbox. Use a unique password manager-generated password of at least 16 characters. Administrator MFA and account recovery are still outstanding security requirements.
+Production disables demo seeding and public administrator registration. After starting the healthy Compose stack, create the first Administrator once using the audited bootstrap script. Follow [the deployment instructions](docs/DEPLOYMENT.md) to enter the email, display name, and password as shell variables and run `docker compose exec ... node scripts/create-admin.mjs`. The script refuses to add a second Administrator, requires the production audit configuration, stores only a password hash, and records the bootstrap in the audit chain/outbox. Use a unique password manager-generated password of at least 16 characters. Administrator TOTP MFA is enforced for production administrator tools and sign-ins after enrollment. Generate a separate `MFA_ENCRYPTION_KEY` with `openssl rand -hex 32`; losing it makes enrolled TOTP secrets unrecoverable. Secure account recovery is still outstanding.
 
 ## Local demo accounts
 
