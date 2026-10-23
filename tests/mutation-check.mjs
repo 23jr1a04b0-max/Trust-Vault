@@ -19,7 +19,7 @@ try {
   const serverPath = join(temp, 'server.mjs');
   const source = readFileSync(serverPath, 'utf8');
   const guard = "if(!hasDocAccess(user,d,'Download'))";
-  const streamGuard = "if(!hasDocAccess(user,current,'Download'))";
+  const streamGuard = "if(!liveUser||liveUser.id!==user.id||!hasDocAccess(liveUser,current,'Download'))";
   assert.ok(source.includes(guard), 'Expected initial download authorization guard was not found');
   assert.ok(source.includes(streamGuard), 'Expected streaming download authorization guard was not found');
   const mutated = source.replace(guard, 'if(false)').replace(streamGuard, 'if(false)');
