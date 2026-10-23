@@ -31,11 +31,11 @@ Passing these checks does not establish that every route is secure, that the app
 
 - No live deployment URL, verified production domain/reverse proxy, live role credentials, or recorded demo exists yet.
 - Node's built-in SQLite API is experimental in the Node 22 runtime used by CI. A production database and migration/concurrency strategy need review.
-- The custom multipart parser and basic file-signature checks need independent review/fuzzing. Malware scanning and quarantine are absent.
-- Login rate limiting is process-local and needs a shared edge limiter for multi-instance hosting.
-- Runtime tests confirm that modifying a stored audit event is detected. Audit HMAC does not protect against compromise of the host and key. External immutable audit checkpoints and transactionally coupled audit writes are not implemented.
+- The custom multipart parser and basic file-signature checks need independent review/fuzzing. Production uploads are scanned through ClamAV and fail closed on scanner errors, but ClamAV is not a guarantee against all malicious files and there is no independent quarantine/parser sandbox.
+- Login rate limiting is process-local; the repository includes a single-Nginx-instance rate-limit sample. Multi-instance or multi-edge hosting needs a shared limiter.
+- Audit events and the persistent external-delivery outbox are now inserted atomically. A signed HTTPS sink client uses redirect refusal and retry/backoff. Audit HMAC does not protect against compromise of the application host/key; independently administered immutable receiver storage and its alerts must still be provisioned and tested.
 - Production Origin checks have been tested in the application process, but behavior behind the actual TLS reverse proxy and deployed domain remains unverified.
-- Backup/restore drills, monitoring, alerting, retention enforcement, password recovery, MFA, and an independent security review remain outstanding.
+- The Restic backup script and systemd timer template exist, but remote repository setup and restore drills remain outstanding. Monitoring/alerting, retention enforcement, password recovery, administrator MFA, and an independent security review remain outstanding.
 - The current automated suite is focused, not exhaustive; broad route authorization, malformed image/PDF parser cases, audit truncation, and concurrent-stream revocation need more runtime coverage.
 
 ## Decision
@@ -64,3 +64,11 @@ These changes do not close the deployment blockers above. No live domain/proxy v
 - Local audit checkpoint files are excluded from Git. The checkpoint detects database-only tail deletion when the checkpoint itself remains intact, but it is on the same host and does not protect against host-level compromise or coordinated deletion of both database and checkpoint.
 - Denied access-request expiry events now target the actual access-request ID rather than a request-correlation ID.
 - Latest commit: `ea01bd79354766bf89ce43f97de2994f9f357349`. The workflow runs for this revision were still in progress at the time of this note. Do not treat the latest revision as validated until both the full check and container smoke test finish successfully.
+
+
+## Latest verification update (2026-10-23)
+
+- Latest recorded commit under review: `a470a0a2029476439b928a6b79161c648d5dd333`.
+- [GitHub Actions run for this commit](https://github.com/23jr1a04b0-max/Trust-Vault/actions/runs/39948613643) must finish successfully before treating that exact head as validated. Earlier commit `e7111d9d3ff6f8ab77558829f7752ad08893d418` passed CI, including tests, mutation checks, backup script syntax, production container build, and health smoke test.
+- Audit row/outbox writes are transactional, audit receiver requests cannot follow redirects, and streaming guards re-check session validity in addition to document/grant authorization.
+- The application code and CI cannot provision an external append-only audit receiver, real TLS domain, remote backup repository, or external alerting, and cannot replace an independent penetration test.
