@@ -59,6 +59,7 @@ The local outbox and signed webhook are not an immutable audit store. Without a 
 | ClamAV production service | Compose integration implemented; full Compose runtime not verified here | Run staging verification |
 | Automated off-host backup and restore | Script and systemd timer template implemented; remote repository, timer installation, and restore drill not verified | Operator evidence required |
 | Initial Administrator bootstrap | Script and automated test implemented; run once on the actual host | Operator evidence required |
-| MFA, monitoring, independent security review | Outstanding | Implementation/third-party work required |
+| Administrator TOTP MFA | Implemented and CI-tested; real authenticator staging verification and recovery workflow outstanding | Operator evidence required |
+| Monitoring, secure account recovery, independent security review | Outstanding | Implementation/third-party work required |
 
 **Release rule:** Do not deploy confidential or regulated documents until the required items have dated evidence and a responsible operator approves the release.
