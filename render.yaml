@@ -1,5 +1,5 @@
 # Render Blueprint for TrustVault.
-# Before deploying, configure the required secrets in the Render dashboard.
+# Configure the audit sink URL and token in the Render dashboard before using production.
 services:
   - type: pserv
     name: trustvault-clamav
@@ -7,7 +7,6 @@ services:
     image:
       url: docker.io/clamav/clamav:stable
     plan: starter
-    healthCheckPath: /
   - type: web
     name: trustvault-backend
     runtime: docker
@@ -20,6 +19,10 @@ services:
         value: production
       - key: PORT
         value: "3000"
+      - key: DATA_DIR
+        value: /var/data/data
+      - key: PRIVATE_FILES_DIR
+        value: /var/data/private-files
       - key: CLAMAV_HOST
         value: trustvault-clamav
       - key: CLAMAV_PORT
@@ -36,5 +39,5 @@ services:
         generateValue: true
     disk:
       name: trustvault-data
-      mountPath: /app/data
+      mountPath: /var/data
       sizeGB: 1
