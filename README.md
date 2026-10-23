@@ -56,7 +56,7 @@ npm run check
 
 The HTTP integration test uses a disposable local server and verifies private-document metadata isolation, administrator content boundaries, Read-versus-Download and Read-versus-Edit separation, grant expiry, revocation, public metadata discovery, duplicate pending-request rejection, repeated requests after decisions, owner approval, upload parser rejection cases, CSRF enforcement, login rate limiting, account disable/session invalidation, logout, and audit-chain consistency. The mutation check removes the download authorization guard in a temporary copy and requires the integration test to fail specifically because Read-only access can download. Idle/absolute session expiry, deeper file-format parser attacks, audit tampering/truncation, concurrent streaming revocation, and every remaining route still need dedicated runtime tests. Production Origin enforcement and Secure-cookie behavior are covered by a separate production-mode HTTP test.
 
-Passing these tests is not a penetration test or a production certification.
+GitHub Actions also builds the production Docker image and starts it briefly to smoke-test the health endpoint. Passing these tests is not a penetration test or a production certification.
 
 ## Important environment settings
 
