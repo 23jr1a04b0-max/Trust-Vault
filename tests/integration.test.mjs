@@ -68,10 +68,10 @@ test('HTTP authorization: private isolation, Read versus Download, approval and 
     rmSync(temp, { recursive: true, force: true });
   });
   await waitForServer(base, child);
-  async function login(email) {
+  async function login(email, role = email.startsWith('admin@') ? 'Administrator' : email.startsWith('owner@') ? 'DocumentOwner' : 'Viewer') {
     const response = await fetch(base + '/api/auth/login', {
       method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ email, password })
+      body: JSON.stringify({ email, password, role })
     });
     assert.equal(response.status, 200, output);
     const cookie = response.headers.get('set-cookie').split(';')[0];
@@ -96,6 +96,16 @@ test('HTTP authorization: private isolation, Read versus Download, approval and 
   }
   const owner = await login('owner@trustvault.test');
   const viewer = await login('viewer@trustvault.test');
+  const signupResponse=await fetch(base+'/api/auth/signup',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({name:'New Owner',email:'new-owner@trustvault.test',password:'Long-Enough-Test-Pass-123',role:'DocumentOwner'})});
+  assert.equal(signupResponse.status,201,await signupResponse.text());
+  const signupViewer=await fetch(base+'/api/auth/signup',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({name:'New Viewer',email:'new-viewer@trustvault.test',password:'Long-Enough-Test-Pass-456',role:'Viewer'})});
+  assert.equal(signupViewer.status,201,await signupViewer.text());
+  const signupAdmin=await fetch(base+'/api/auth/signup',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({name:'Fake Admin',email:'fake-admin@trustvault.test',password:'Long-Enough-Test-Pass-789',role:'Administrator'})});
+  assert.equal(signupAdmin.status,400,'public sign-up must never create administrator accounts');
+  const wrongRoleLogin=await fetch(base+'/api/auth/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email:'owner@trustvault.test',password,role:'Viewer'})});
+  assert.equal(wrongRoleLogin.status,403,'login must enforce the selected role against the stored account role');
+  const duplicateSignup=await fetch(base+'/api/auth/signup',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({name:'Duplicate',email:'new-owner@trustvault.test',password:'Long-Enough-Test-Pass-123',role:'DocumentOwner'})});
+  assert.equal(duplicateSignup.status,409,'duplicate email sign-up must be rejected');
   const admin = await login('admin@trustvault.test');
   assert.equal((await fetch(base + '/api/documents')).status, 401);
 
