@@ -32,7 +32,7 @@ async function waitReady(base,child,readOutput){
 
 test('production HTTP origin checks and Secure session cookie',async t=>{
   const temp=mkdtempSync(join(tmpdir(),'trustvault-origin-'));
-  for(const path of ['server.mjs','db/schema.sql']){
+  for(const path of ['server.mjs','clamav.mjs','db/schema.sql']){
     const dest=join(temp,path);mkdirSync(dirname(dest),{recursive:true});copyFileSync(join(root,path),dest);
   }
   mkdirSync(join(temp,'data'),{recursive:true});
