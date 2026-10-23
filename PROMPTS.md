@@ -108,3 +108,11 @@ This file is intentionally honest about the missing public commit links and sing
 - **Verification:** GitHub Actions passed `npm run check`, including the integration suite and download-authorization mutation test. The Docker build and health smoke test was still running when this note was drafted.
 - **Remaining gaps:** These parser checks are not a substitute for fuzzing or a mature multipart library, malware scanning, quarantine, and format-specific file parser validation.
 - **Commit:** [Multipart regression tests](https://github.com/23jr1a04b0-max/Trust-Vault/commit/8cf6a6d65f0b10931a80f16575506ab25e025534).
+
+## Entry 12: 2026-10-23, expand owner and administrator route authorization tests
+
+- **Prompt or faithful summary:** Continue hardening TrustVault on the feature branch and verify permissions against actual HTTP routes.
+- **Generated result:** Added integration assertions that non-owners cannot read grant lists, document-specific audit trails, grant access, or revoke access. Also checked that document owners cannot read the global administrator audit feed and viewers cannot run global audit verification.
+- **Verification:** The test change is committed to the feature branch. Its current GitHub Actions run is linked below; do not count the check as passed until the run finishes successfully.
+- **Remaining gaps:** This expands but does not complete the full route/role matrix. Continue testing rejected access requests, unknown methods, deleted documents, disabled accounts, and concurrent operations.
+- **Commit:** [Owner and admin route authorization tests](https://github.com/23jr1a04b0-max/Trust-Vault/commit/8f1b1c8ae1aded3d2f9dbb0da2b7f752bcb57e9a).
