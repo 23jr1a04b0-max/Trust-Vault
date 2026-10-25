@@ -49,8 +49,10 @@
         <form id="login-form">
           <label for="email">Email address</label>
           <input id="email" name="email" type="email" autocomplete="username" required maxlength="254">
+          <p id="email-status" class="field-status" role="status" aria-live="polite" hidden></p>
           <label for="password">Password</label>
           <div class="password-field"><input id="password" name="password" type="password" autocomplete="current-password" required maxlength="1024"><button class="password-toggle" type="button" data-password-toggle="password" aria-label="Show password" aria-pressed="false" title="Show password"><svg class="eye-open" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg><svg class="eye-closed" viewBox="0 0 24 24" aria-hidden="true"><path d="m3 3 18 18M10.6 10.6a2 2 0 0 0 2.8 2.8"/><path d="M9.9 5.2A10.8 10.8 0 0 1 12 5c6.4 0 10 7 10 7a17 17 0 0 1-3.1 3.8M6.2 6.2C3.5 8 2 12 2 12s3.6 7 10 7a10 10 0 0 0 4-.8"/></svg></button></div>
+          <p id="password-status" class="field-status" role="status" aria-live="polite" hidden></p>
           <p id="login-status" class="field-status" role="status" aria-live="polite" hidden></p>
           <div id="mfa-code-row" hidden>
             <label for="login-mfa-code">6-digit authenticator code</label>
@@ -73,8 +75,10 @@
           <input id="signup-name" name="name" autocomplete="name" required maxlength="80">
           <label for="signup-email">Email address</label>
           <input id="signup-email" name="email" type="email" autocomplete="email" required maxlength="254">
+          <p id="signup-email-status" class="field-status" role="status" aria-live="polite" hidden></p>
           <label for="signup-password">Password</label>
           <div class="password-field"><input id="signup-password" name="password" type="password" autocomplete="new-password" required minlength="12" maxlength="1024" aria-describedby="password-help"><button class="password-toggle" type="button" data-password-toggle="signup-password" aria-label="Show password" aria-pressed="false" title="Show password"><svg class="eye-open" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg><svg class="eye-closed" viewBox="0 0 24 24" aria-hidden="true"><path d="m3 3 18 18M10.6 10.6a2 2 0 0 0 2.8 2.8"/><path d="M9.9 5.2A10.8 10.8 0 0 1 12 5c6.4 0 10 7 10 7a17 17 0 0 1-3.1 3.8M6.2 6.2C3.5 8 2 12 2 12s3.6 7 10 7a10 10 0 0 0 4-.8"/></svg></button></div>
+          <p id="signup-password-status" class="field-status" role="status" aria-live="polite" hidden></p>
           <p id="password-help" class="small muted">Use at least 12 characters. Never reuse a password from another site.</p>
           <p id="signup-status" class="field-status" role="status" aria-live="polite" hidden></p>
           <button type="submit">Create account</button>
@@ -96,6 +100,7 @@
         <form id="upload-form">
           <label for="document-file">File (PDF, TXT, PNG, or JPG)</label>
           <input id="document-file" name="file" type="file" accept=".pdf,.txt,.png,.jpg,.jpeg" required>
+          <p id="upload-status" class="field-status" role="status" aria-live="polite" hidden></p>
           <label for="document-category">Category</label>
           <input id="document-category" name="category" maxlength="80" value="General" required>
           <label for="document-visibility">Visibility</label>
