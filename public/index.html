@@ -52,9 +52,11 @@
           <input id="email" name="email" type="email" autocomplete="username" required maxlength="254">
           <label for="password">Password</label>
           <div class="password-field"><input id="password" name="password" type="password" autocomplete="current-password" required maxlength="1024"><button class="password-toggle" type="button" data-password-toggle="password" aria-label="Show password" aria-pressed="false" title="Show password"><svg class="eye-open" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg><svg class="eye-closed" viewBox="0 0 24 24" aria-hidden="true"><path d="m3 3 18 18M10.6 10.6a2 2 0 0 0 2.8 2.8"/><path d="M9.9 5.2A10.8 10.8 0 0 1 12 5c6.4 0 10 7 10 7a17 17 0 0 1-3.1 3.8M6.2 6.2C3.5 8 2 12 2 12s3.6 7 10 7a10 10 0 0 0 4-.8"/></svg></button></div>
+          <p id="login-status" class="field-status" role="status" aria-live="polite" hidden></p>
           <div id="mfa-code-row" hidden>
             <label for="login-mfa-code">6-digit authenticator code</label>
             <input id="login-mfa-code" name="mfaCode" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" aria-describedby="login-mfa-help">
+            <p id="login-mfa-status" class="field-status" role="status" aria-live="polite" hidden></p>
             <p id="login-mfa-help" class="small muted">Enter a fresh code from your authenticator app.</p>
           </div>
           <p id="login-status" class="field-status" role="status" aria-live="polite" hidden></p>
@@ -135,6 +137,7 @@
             <form id="mfa-verify-form">
               <label for="mfa-verify-code">6-digit authenticator code</label>
               <input id="mfa-verify-code" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required>
+              <p id="mfa-status" class="field-status" role="status" aria-live="polite" hidden></p>
               <button type="submit">Verify and enable MFA</button>
             </form>
           </div>
