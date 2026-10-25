@@ -57,7 +57,10 @@ if (hasSinkUrl && hasSinkToken) {
         const q = (sql, ...args) => db.prepare(sql).get(...args);
         const run = (sql, ...args) => db.prepare(sql).run(...args);
         const adminCount = q("SELECT COUNT(*) AS count FROM users WHERE role='Administrator'").count;
-        if (adminCount > 0) throw new Error('An Administrator account already exists. This one-time bootstrap never creates or resets additional administrators.');
+        if (adminCount > 0) {
+  console.log('Administrator already exists; bootstrap skipped.');
+  process.exit(0);
+}
         const checkpoint = checkpointExists ? JSON.parse(readFileSync(checkpointPath, 'utf8')) : null;
         const latest = q('SELECT seq,hash FROM audit ORDER BY seq DESC LIMIT 1');
         if (checkpointExists && (!checkpoint || checkpoint.version !== 1 || checkpoint.seq !== (latest?.seq || 0) || checkpoint.hash !== (latest?.hash || 'GENESIS'))) {
