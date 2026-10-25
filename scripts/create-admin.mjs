@@ -17,7 +17,25 @@ if (process.env.NODE_ENV !== 'production') {
   let sinkUrl;
   try { sinkUrl = validateAuditSinkConfig(process.env.AUDIT_SINK_URL || '', process.env.AUDIT_SINK_TOKEN || ''); }
   catch (error) { fail(error.message); }
-  if (!process.env.AUDIT_SINK_URL || !process.env.AUDIT_SINK_TOKEN) fail('AUDIT_SINK_URL and AUDIT_SINK_TOKEN are required.');
+  const demoMode = process.env.TRUSTVAULT_DEMO_MODE === 'true';
+const hasSinkUrl = Boolean(process.env.AUDIT_SINK_URL);
+const hasSinkToken = Boolean(process.env.AUDIT_SINK_TOKEN);
+
+if (hasSinkUrl !== hasSinkToken) {
+  fail('Configure both AUDIT_SINK_URL and AUDIT_SINK_TOKEN, or leave both unset for demo mode.');
+}
+
+if (!hasSinkUrl && !demoMode) {
+  fail('Without an external audit sink, TRUSTVAULT_DEMO_MODE=true is required.');
+}
+
+if (hasSinkUrl && hasSinkToken) {
+  try {
+    validateAuditSinkConfig(process.env.AUDIT_SINK_URL, process.env.AUDIT_SINK_TOKEN);
+  } catch (error) {
+    fail(error.message);
+  }
+}
   if (Buffer.byteLength(auditKeyText) < 32) fail('AUDIT_HMAC_KEY must be at least 32 bytes.');
   if (!email || email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) fail('Provide a valid ADMIN_EMAIL.');
   if (!name || name.length > 80 || /[\x00-\x1f\x7f]/.test(name)) fail('Provide an ADMIN_NAME of 1-80 printable characters.');
