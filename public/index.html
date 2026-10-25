@@ -51,6 +51,11 @@
           <input id="email" name="email" type="email" autocomplete="username" required maxlength="254">
           <label for="password">Password</label>
           <input id="password" name="password" type="password" autocomplete="current-password" required maxlength="1024">
+          <div id="mfa-code-row" hidden>
+            <label for="login-mfa-code">6-digit authenticator code</label>
+            <input id="login-mfa-code" name="mfaCode" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" aria-describedby="login-mfa-help">
+            <p id="login-mfa-help" class="small muted">Enter a fresh code from your authenticator app.</p>
+          </div>
           <button type="submit">Sign in</button>
         </form>
         <p id="signup-prompt" class="small muted">New to TrustVault? <button id="show-signup" class="inline-button" type="button">Create an account</button></p>
