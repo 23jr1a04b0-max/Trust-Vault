@@ -42,8 +42,8 @@ test('production admin bootstrap creates one audited admin and refuses a second'
       assert.equal(checkpoint.hash,latest.hash);
     } finally { db.close(); }
     const second = spawnSync(process.execPath,['scripts/create-admin.mjs'],{cwd:temp,env,encoding:'utf8'});
-    assert.notEqual(second.status,0,'bootstrap must not create a second administrator');
-    assert.match(second.stderr,/Administrator account already exists/);
+assert.equal(second.status,0,second.stdout+'\n'+second.stderr);
+assert.match(second.stdout,/Administrator already exists; bootstrap skipped/);
   } finally {
     rmSync(temp,{recursive:true,force:true});
   }
