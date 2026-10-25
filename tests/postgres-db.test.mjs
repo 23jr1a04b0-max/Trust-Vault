@@ -17,3 +17,11 @@ test('does not rewrite question marks inside quoted identifiers', () => {
 test('keeps SQL with no placeholders unchanged', () => {
   assert.equal(parameterizeSql('SELECT COUNT(*) FROM users'), 'SELECT COUNT(*) FROM users');
 });
+
+test('preserves doubled quote escapes inside SQL string literals', () => {
+  assert.equal(parameterizeSql("SELECT 'it''s ?' AS label WHERE id=?"), "SELECT 'it''s ?' AS label WHERE id=$1");
+});
+
+test('preserves doubled quote escapes inside identifiers', () => {
+  assert.equal(parameterizeSql('SELECT "a""?b" FROM sample WHERE id=?'), 'SELECT "a""?b" FROM sample WHERE id=$1');
+});
