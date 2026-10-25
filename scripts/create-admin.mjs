@@ -24,7 +24,7 @@ if (process.env.NODE_ENV !== 'production') {
   if (password.length < 16 || password.length > 1024) fail('ADMIN_PASSWORD must be between 16 and 1024 characters.');
   if (!process.exitCode) {
     const root = process.cwd();
-    const data = resolve(root, 'data');
+    const data = resolve(process.env.DATA_DIR || join(root, 'data'));
     mkdirSync(data, { recursive: true, mode: 0o700 });
     const checkpointPath = join(data, 'audit-checkpoint.json');
     const markerPath = join(data, 'audit-checkpoint.initialized');
