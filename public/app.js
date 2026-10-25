@@ -291,6 +291,18 @@ async function loadDocuments() {
 }
 document.querySelectorAll('[data-role]').forEach(option => option.addEventListener('click', () => showLoginForRole(option.dataset.role)));
 $('change-role').addEventListener('click', showRoleSelection);
+
+document.querySelectorAll('[data-password-toggle]').forEach(toggle => {
+  toggle.addEventListener('click', () => {
+    const input = $(toggle.dataset.passwordToggle);
+    if (!input) return;
+    const reveal = input.type === 'password';
+    input.type = reveal ? 'text' : 'password';
+    toggle.setAttribute('aria-pressed', String(reveal));
+    toggle.setAttribute('aria-label', reveal ? 'Hide password' : 'Show password');
+    toggle.setAttribute('title', reveal ? 'Hide password' : 'Show password');
+  });
+});
 $('show-signup').addEventListener('click', showSignup);
 $('show-login').addEventListener('click', () => showLoginForRole(selectedRole || 'Viewer'));
 $('login-form').addEventListener('submit', async event => {
