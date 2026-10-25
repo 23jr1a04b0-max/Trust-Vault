@@ -5,7 +5,7 @@
   "type": "module",
   "description": "Secure document sharing with explicit per-document grants and a tamper-evident audit trail",
   "scripts": {
-    "start": "node server.mjs",
+    "start": "node scripts/create-admin.mjs && node server.mjs",
     "dev": "node --env-file=.env server.mjs",
     "test": "node --test",
     "test:mutation": "node tests/mutation-check.mjs",
