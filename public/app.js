@@ -35,6 +35,15 @@ function showSignup() {
   $('signup-role-description').textContent = selectedRole === 'DocumentOwner' ? 'Owner accounts can upload documents and manage their own sharing permissions after administrator approval.' : 'Viewer accounts can access documents only when their owners grant permission.';
 }
 
+function fieldStatus(id, message, kind = '') {
+  const el = $(id);
+  if (!el) return;
+  el.textContent = message;
+  el.className = ('field-status ' + kind).trim();
+  el.hidden = !message;
+}
+function clearFieldStatuses(...ids) { ids.forEach(id => fieldStatus(id, '')); }
+
 function notice(message, kind = '') {
   const el = $('notice');
   el.textContent = message;
@@ -291,6 +300,10 @@ async function loadDocuments() {
 }
 document.querySelectorAll('[data-role]').forEach(option => option.addEventListener('click', () => showLoginForRole(option.dataset.role)));
 $('change-role').addEventListener('click', showRoleSelection);
+$('back-button').addEventListener('click', () => {
+  if (window.history.length > 1) window.history.back();
+  else showRoleSelection();
+});
 
 document.querySelectorAll('[data-password-toggle]').forEach(toggle => {
   toggle.addEventListener('click', () => {
@@ -308,7 +321,8 @@ $('show-login').addEventListener('click', () => showLoginForRole(selectedRole ||
 $('login-form').addEventListener('submit', async event => {
   event.preventDefault();
   notice('');
-  if (!selectedRole) { notice('Choose a role before signing in.', 'error'); return; }
+  clearFieldStatuses('login-status','login-mfa-status');
+  if (!selectedRole) { fieldStatus('login-status','Choose a role before signing in.','error'); return; }
   const form = new FormData(event.currentTarget);
   try {
     const data = await api('/api/auth/login', {
@@ -316,8 +330,10 @@ $('login-form').addEventListener('submit', async event => {
       body: JSON.stringify({ email: form.get('email'), password: form.get('password'), role: selectedRole, mfaCode: form.get('mfaCode') })
     });
     showAuthenticated(data.user, data.csrfToken);
-    notice('Signed in successfully.', 'success');
-  } catch (error) { notice(error.message, 'error'); }
+  } catch (error) {
+    const mfaError = /authenticator|mfa|code/i.test(error.message);
+    fieldStatus(mfaError && selectedRole === 'Administrator' ? 'login-mfa-status' : 'login-status', error.message, 'error');
+  }
 });
 $('signup-form').addEventListener('submit', async event => {
   event.preventDefault();
@@ -336,7 +352,7 @@ $('signup-form').addEventListener('submit', async event => {
     showLoginForRole(selectedRole);
     $('email').value = email;
     notice(data.approvalStatus === 'Pending' ? 'Owner registration request submitted. You can sign in after an administrator approves your account.' : 'Account created. Sign in with your new email and password.', 'success');
-  } catch (error) { notice(error.message, 'error'); }
+  } catch (error) { fieldStatus('signup-status', error.message, 'error'); }
 });
 $('logout-button').addEventListener('click', async () => {
   try { await api('/api/auth/logout', { method: 'POST', body: '{}' }); }
@@ -422,12 +438,13 @@ $('mfa-enroll-button').addEventListener('click', async () => {
 });
 $('mfa-verify-form').addEventListener('submit', async event => {
   event.preventDefault();
+  fieldStatus('mfa-status','');
   try {
     await api('/api/admin/mfa/verify',{method:'POST',body:JSON.stringify({code:$('mfa-verify-code').value.trim()})});
     const data = await api('/api/auth/me');
     showAuthenticated(data.user,data.csrfToken);
-    notice('Administrator MFA is enabled. Future sign-ins require an authenticator code.','success');
-  } catch(error) { notice(error.message,'error'); }
+    fieldStatus('mfa-status','Administrator MFA is enabled. Future sign-ins require an authenticator code.','success');
+  } catch(error) { fieldStatus('mfa-status',error.message,'error'); }
 });
 $('audit-verify').addEventListener('click', async () => {
   try {
