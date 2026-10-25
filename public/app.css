@@ -38,3 +38,6 @@
 #notice{padding:0;margin:8px 0;border:0;border-radius:0;background:transparent;color:var(--ink);box-shadow:none}
 #notice.error{color:#b42318}
 #notice.success{color:#16803c}
+
+.brand-stack{display:flex;flex-direction:column;align-items:flex-start;gap:3px}
+#back-button{display:block;align-self:flex-start;margin:0;padding:0;border:0;background:transparent;color:inherit;font-size:16px;line-height:1;box-shadow:none;cursor:pointer}
