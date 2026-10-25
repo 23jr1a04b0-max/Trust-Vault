@@ -28,3 +28,13 @@
 .password-field>button.password-toggle .eye-closed{display:none}
 .password-field>button.password-toggle[aria-pressed="true"] .eye-open{display:none}
 .password-field>button.password-toggle[aria-pressed="true"] .eye-closed{display:block}
+
+/* Plain inline feedback and small back control */
+#back-button{display:block;margin:4px 0 0 0;padding:0;border:0;background:transparent;color:inherit;font-size:18px;line-height:1;box-shadow:none;cursor:pointer}
+#back-button:hover{background:transparent}
+.field-status{margin:6px 0 10px;font-size:.9rem;font-weight:400}
+.field-status.error{color:#b42318}
+.field-status.success{color:#16803c}
+#notice{padding:0;margin:8px 0;border:0;border-radius:0;background:transparent;color:var(--ink);box-shadow:none}
+#notice.error{color:#b42318}
+#notice.success{color:#16803c}
