@@ -2,7 +2,10 @@ import pg from 'pg';
 
 const { Pool } = pg;
 
-/** Convert SQLite-style positional placeholders to PostgreSQL placeholders. */
+/**
+ * Convert the application's positional placeholders into PostgreSQL's $1, $2...
+ * Handles standard SQL single/double quotes and doubled quote escapes.
+ */
 export function parameterizeSql(sql) {
   let index = 0;
   let output = '';
@@ -10,8 +13,20 @@ export function parameterizeSql(sql) {
   let double = false;
   for (let i = 0; i < sql.length; i += 1) {
     const ch = sql[i];
-    if (ch === "'" && !double && sql[i - 1] !== '\\') single = !single;
-    if (ch === '"' && !single && sql[i - 1] !== '\\') double = !double;
+    const next = sql[i + 1];
+    if (single && ch === "'" && next === "'") {
+      output += "''";
+      i += 1;
+      continue;
+    }
+    if (double && ch === '"' && next === '"') {
+      output += '""';
+      i += 1;
+      continue;
+    }
+    if (ch === "'" && !double) single = !single;
+    else if (ch === '"' && !single) double = !double;
+
     if (ch === '?' && !single && !double) output += '$' + (++index);
     else output += ch;
   }
