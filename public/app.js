@@ -50,6 +50,19 @@ function notice(message, kind = '') {
   el.className = `notice ${kind}`.trim();
   el.hidden = !message;
 }
+function fieldFeedback(id, message, kind = '') {
+  const el = $(id);
+  if (!el) return;
+  el.textContent = message;
+  el.className = ('field-status ' + kind).trim();
+  el.hidden = !message;
+}
+function clearFeedback(...ids) { ids.forEach(id => fieldFeedback(id, '')); }
+function loginErrorTarget(message) {
+  if (/authenticator|mfa|one-time|6.?digit|code/i.test(message)) return 'login-mfa-status';
+  if (/email|account|user|role|sign.?in|credential|not found|disabled|approved/i.test(message)) return 'email-status';
+  return 'password-status';
+}
 async function api(path, options = {}) {
   const headers = new Headers(options.headers || {});
   if (options.body && !(options.body instanceof FormData)) headers.set('content-type', 'application/json');
@@ -321,8 +334,8 @@ $('show-login').addEventListener('click', () => showLoginForRole(selectedRole ||
 $('login-form').addEventListener('submit', async event => {
   event.preventDefault();
   notice('');
-  clearFieldStatuses('login-status','login-mfa-status');
-  if (!selectedRole) { fieldStatus('login-status','Choose a role before signing in.','error'); return; }
+  clearFeedback('email-status','password-status','login-mfa-status','login-status');
+  if (!selectedRole) { fieldFeedback('login-status','Choose a role before signing in.','error'); return; }
   const form = new FormData(event.currentTarget);
   try {
     const data = await api('/api/auth/login', {
@@ -331,8 +344,7 @@ $('login-form').addEventListener('submit', async event => {
     });
     showAuthenticated(data.user, data.csrfToken);
   } catch (error) {
-    const mfaError = /authenticator|mfa|code/i.test(error.message);
-    fieldStatus(mfaError && selectedRole === 'Administrator' ? 'login-mfa-status' : 'login-status', error.message, 'error');
+    fieldFeedback(loginErrorTarget(error.message), error.message, 'error');
   }
 });
 $('signup-form').addEventListener('submit', async event => {
@@ -352,7 +364,11 @@ $('signup-form').addEventListener('submit', async event => {
     showLoginForRole(selectedRole);
     $('email').value = email;
     notice(data.approvalStatus === 'Pending' ? 'Owner registration request submitted. You can sign in after an administrator approves your account.' : 'Account created. Sign in with your new email and password.', 'success');
-  } catch (error) { fieldStatus('signup-status', error.message, 'error'); }
+  } catch (error) {
+    const target = /email|already|account exists/i.test(error.message) ? 'signup-email-status' :
+      /password/i.test(error.message) ? 'signup-password-status' : 'signup-status';
+    fieldFeedback(target, error.message, 'error');
+  }
 });
 $('logout-button').addEventListener('click', async () => {
   try { await api('/api/auth/logout', { method: 'POST', body: '{}' }); }
@@ -363,7 +379,8 @@ $('logout-button').addEventListener('click', async () => {
 $('upload-form').addEventListener('submit', async event => {
   event.preventDefault();
   const file = $('document-file').files[0];
-  if (!file) { notice('Choose a file first.', 'error'); return; }
+  fieldFeedback('upload-status','');
+  if (!file) { fieldFeedback('upload-status','Choose a file first.','error'); return; }
   const data = new FormData();
   data.append('file', file);
   data.append('category', $('document-category').value.trim() || 'General');
@@ -372,9 +389,9 @@ $('upload-form').addEventListener('submit', async event => {
     await api('/api/documents', { method: 'POST', body: data });
     event.currentTarget.reset();
     $('document-category').value = 'General';
-    notice('Document uploaded successfully.', 'success');
+    fieldFeedback('upload-status','Document uploaded successfully.','success');
     loadDocuments();
-  } catch (error) { notice(error.message, 'error'); }
+  } catch (error) { fieldFeedback('upload-status',error.message,'error'); }
 });
 $('refresh-button').addEventListener('click', loadDocuments);
 $('notifications-toggle').addEventListener('click',()=>toggleNotifications());
