@@ -109,6 +109,14 @@
         <section id="admin-mfa-panel" class="panel" hidden>
           <h3>Secure this administrator account</h3>
           <p class="muted">Set up an authenticator app before using administrator tools. Keep the secret private.</p>
+          <label for="mfa-current-password">Confirm your current password</label>
+          <input
+            id="mfa-current-password"
+            name="currentPassword"
+            type="password"
+            autocomplete="current-password"
+            required
+          >
           <button id="mfa-enroll-button" type="button">Set up authenticator</button>
           <div id="mfa-enroll-details" hidden>
             <p><strong>Manual setup key</strong></p>
